@@ -10,6 +10,7 @@
   };
   const SLOT_COUNT = 2;
   const LAYOUT_GAP_MM = 8;
+  const PERIMETER_PATTERNS = new Set(['dots', 'diamonds', 'stars', 'hearts', 'flowers']);
 
   const PRESETS = [
     { name: '딸기우유', style: 'plain', bg: '#ffb7c5', line: '#ed7891', pattern: 'none', p1: '#ffffff', p2: '#ffd86f', size: 2.2, gap: 4, random: 0, texture: 'soft', radius: 5 },
@@ -846,8 +847,22 @@
     el('flipXBtn').textContent = slot.flipX ? '좌우 반전 ✓' : '좌우 반전';
   }
 
+  function getPatternSizeMax(frame) {
+    if (PERIMETER_PATTERNS.has(frame.pattern)) {
+      return Math.max(0.6, Math.min(10, frame.width * 0.68));
+    }
+    return 10;
+  }
+
+  function normalizePatternSize(frame) {
+    const maxSize = getPatternSizeMax(frame);
+    frame.patternSize = Math.max(0.6, Math.min(frame.patternSize, maxSize));
+    return maxSize;
+  }
+
   function syncFrameControls() {
     const frame = state.slots[state.activeSlot].frame;
+    const patternSizeMax = normalizePatternSize(frame);
     el('frameStyle').value = frame.style;
     el('frameColor').value = frame.backgroundColor;
     el('frameLineColor').value = frame.lineColor;
@@ -858,8 +873,9 @@
     el('patternType').value = frame.pattern;
     el('patternColor1').value = frame.patternColor1;
     el('patternColor2').value = frame.patternColor2;
+    el('patternSizeRange').max = patternSizeMax;
     el('patternSizeRange').value = frame.patternSize;
-    el('patternSizeValue').textContent = frame.patternSize + ' mm';
+    el('patternSizeValue').textContent = frame.patternSize.toFixed(1).replace('.0', '') + ' mm';
     el('patternGapRange').value = frame.patternGap;
     el('patternGapValue').textContent = frame.patternGap + ' mm';
     el('patternRandomRange').value = frame.patternRandom;
@@ -1289,6 +1305,8 @@
     const frame = state.slots[state.activeSlot].frame;
     frame.width = Number(e.target.value);
     el('frameWidthValue').textContent = frame.width + ' mm';
+    normalizePatternSize(frame);
+    syncFrameControls();
     markFrameCustom();
     render();
   });
@@ -1301,7 +1319,10 @@
   });
 
   el('patternType').addEventListener('change', function(e) {
-    state.slots[state.activeSlot].frame.pattern = e.target.value;
+    const frame = state.slots[state.activeSlot].frame;
+    frame.pattern = e.target.value;
+    normalizePatternSize(frame);
+    syncFrameControls();
     markFrameCustom();
     render();
   });
@@ -1317,8 +1338,8 @@
   });
   el('patternSizeRange').addEventListener('input', function(e) {
     const frame = state.slots[state.activeSlot].frame;
-    frame.patternSize = Number(e.target.value);
-    el('patternSizeValue').textContent = frame.patternSize + ' mm';
+    frame.patternSize = Math.min(Number(e.target.value), getPatternSizeMax(frame));
+    el('patternSizeValue').textContent = frame.patternSize.toFixed(1).replace('.0', '') + ' mm';
     markFrameCustom();
     render();
   });
