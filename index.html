@@ -78,6 +78,7 @@
           <div class="button-row">
             <button id="fitBtn" type="button" class="btn small secondary">사진 맞춤</button>
             <button id="centerBtn" type="button" class="btn small ghost">중앙 정렬</button>
+            <button id="flipXBtn" type="button" class="btn small ghost">좌우 반전</button>
             <button id="copyPhotoBtn" type="button" class="btn small ghost">다른 칸에 복사</button>
           </div>
           <p class="hint">미리보기의 사진 영역을 마우스/터치로 드래그하면 위치를 직접 맞출 수 있습니다.</p>
@@ -136,7 +137,105 @@
         </section>
 
         <section class="control-section">
-          <h2>4. 오리기 가이드</h2>
+          <div class="section-title-row">
+            <h2>4. 이름 / 글자</h2>
+            <span class="badge accent">슬롯별 설정</span>
+          </div>
+
+          <label class="stack-field">
+            <span>이름 / 문구</span>
+            <input id="nameText" type="text" maxlength="40" placeholder="예: 김라엘" />
+          </label>
+          <label class="stack-field">
+            <span>보조 문구</span>
+            <input id="secondaryText" type="text" maxlength="60" placeholder="예: 햇님반 · 2026.10" />
+          </label>
+
+          <label class="field-row">
+            <span>글자 위치</span>
+            <select id="textPosition">
+              <option value="bottom">사진 아래</option>
+              <option value="top">사진 위</option>
+              <option value="center">사진 가운데</option>
+            </select>
+          </label>
+
+          <div class="mini-grid two">
+            <label>
+              <span>글자 크기 (mm)</span>
+              <input id="textSize" type="number" min="3" max="24" step="0.5" value="8" />
+            </label>
+            <label>
+              <span>글자 색</span>
+              <input id="textColor" type="color" value="#ffffff" />
+            </label>
+          </div>
+
+          <label class="field-row">
+            <span>폰트</span>
+            <select id="fontSelect">
+              <option value="system-ui">기본 시스템</option>
+              <option value="Malgun Gothic">맑은 고딕</option>
+              <option value="Arial Rounded MT Bold">Arial Rounded</option>
+              <option value="Comic Sans MS">Comic Sans</option>
+              <option value="Segoe UI Rounded">Segoe UI Rounded</option>
+              <option value="Apple SD Gothic Neo">Apple SD Gothic Neo</option>
+              <option value="Noto Sans KR">Noto Sans KR</option>
+              <option value="NanumSquareRound">나눔스퀘어라운드</option>
+            </select>
+          </label>
+
+          <div class="button-row">
+            <button id="scanFontsBtn" type="button" class="btn small secondary">시스템 폰트 찾기</button>
+            <label class="btn small ghost file-button" for="fontFileInput">
+              폰트 파일 불러오기
+              <input id="fontFileInput" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" hidden />
+            </label>
+          </div>
+          <p id="fontStatus" class="hint">설치 폰트 검색은 지원되는 Chrome/Edge에서 사용할 수 있습니다. 폰트 파일은 브라우저 안에서만 사용됩니다.</p>
+
+          <div class="mini-grid two">
+            <label>
+              <span>가로 위치 (mm)</span>
+              <input id="textOffsetX" type="number" min="-40" max="40" step="0.5" value="0" />
+            </label>
+            <label>
+              <span>세로 위치 (mm)</span>
+              <input id="textOffsetY" type="number" min="-40" max="40" step="0.5" value="0" />
+            </label>
+          </div>
+
+          <div class="mini-grid two">
+            <label>
+              <span>글자 굵기</span>
+              <select id="textWeight">
+                <option value="400">보통</option>
+                <option value="700" selected>굵게</option>
+                <option value="900">아주 굵게</option>
+              </select>
+            </label>
+            <label>
+              <span>외곽선 색</span>
+              <input id="outlineColor" type="color" value="#6d554b" />
+            </label>
+          </div>
+
+          <label class="toggle-row">
+            <span>
+              <strong>글자 외곽선</strong>
+              <small>사진 위에서도 이름이 잘 보이게 합니다.</small>
+            </span>
+            <input id="textOutlineToggle" type="checkbox" checked />
+          </label>
+
+          <div class="button-row">
+            <button id="copyTextBtn" type="button" class="btn small ghost">글자 설정을 다른 칸에 복사</button>
+          </div>
+          <p class="hint">이름과 보조 문구는 각 사진별로 따로 저장됩니다. 업로드한 폰트도 300 DPI PNG 저장에 그대로 적용됩니다.</p>
+        </section>
+
+        <section class="control-section">
+          <h2>5. 오리기 가이드</h2>
           <label class="field-row">
             <span>가이드 종류</span>
             <select id="guideStyle">
