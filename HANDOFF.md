@@ -2,168 +2,149 @@
 
 ## 최신 안정 기준
 
-- 버전: **v0.2.0 Text & Local Font Patch**
+- 버전: **v0.3.0 Independent Frame & Pattern Engine**
 - 기준일: 2026-10-01
-- 저장소: `kdc916/Photo_Frame_Print_Tool`
-- 배포: GitHub Pages / `main` 브랜치 루트 정적 배포
+- 저장소: kdc916/Photo_Frame_Print_Tool
+- 배포: GitHub Pages / main 브랜치 root
 
-## 프로젝트 목적
+## 절대 유지 기준
 
-어린이집/유치원 등에서 사용할 사진을 실제 인쇄 크기 기준으로 배치하고, 귀엽고 단순한 프레임과 이름 텍스트를 적용한 뒤 A4로 인쇄하거나 300 DPI PNG로 저장하는 정적 웹 툴.
+- A4 Portrait 210 × 297 mm → 2480 × 3508 px @ 300 DPI
+- A4 Landscape 297 × 210 mm → 3508 × 2480 px @ 300 DPI
+- 기본 사진 영역 89 × 119 mm
+- A4 한 장 최대 2장
+- 저장 시 mm 데이터에서 300 DPI로 다시 렌더링
+- 사진/폰트 서버 업로드 없음
+- 외부 CDN/API 없이 기본 편집과 출력 가능
 
-## 절대 유지해야 하는 출력 기준
+## v0.3.0 핵심 변경
 
-- A4 Portrait: 210 × 297 mm → 2480 × 3508 px @ 300 DPI
-- A4 Landscape: 297 × 210 mm → 3508 × 2480 px @ 300 DPI
-- 기본 사진 영역: **89 × 119 mm**
-- 저장 시 화면 캔버스를 확대하는 방식이 아니라 mm 데이터를 300 DPI로 다시 렌더링
-- 사진/폰트 파일은 서버로 업로드하지 않고 브라우저 안에서 처리
-- 외부 CDN/API 없이 기본 편집/출력 기능 동작
+### 1. 4장 배치 제거
 
-## v0.2.0 변경 내용
+이전 2×2 4장 배치에서는 89×119 mm 사진 + 프레임 + 재단 가이드가 A4에서 서로 겹칠 수 있었다.
 
-### 1. 프레임 안쪽 흰색 라인 수정
+현재 layout 값은 1 또는 2만 허용하고 코드에서도 Math.min(2, ...)로 최대값을 방어한다. 4장 UI 및 렌더 분기는 제거했다.
 
-v0.1.0에서는 프레임 링과 사진이 서로 다른 Rounded Clip 경로로 안티앨리어싱되면서 경계에 흰색 1px 정도가 노출될 수 있었다.
+### 2. 2장 자동 레이아웃
 
-수정 방식:
+각 슬롯의 프레임 두께가 서로 다를 수 있으므로 프레임 외곽 크기를 슬롯별로 계산한다.
 
-1. 사진을 프레임보다 먼저 렌더링
-2. 사진 Clip 영역을 약 0.18~0.45 mm 프레임 아래까지 bleed
-3. 프레임을 사진 위에 다시 렌더링
-4. 사진과 프레임의 inner radius 계산 기준 통일
-5. Preview와 300 DPI Export 모두 동일 렌더러 사용
+- Portrait 우선: 세로 스택
+- Landscape 우선: 가로 스택
+- 지정 방향에서 공간이 부족하면 반대 배치 방식 자동 검토
+- 슬롯 외곽 사이 기본 간격: 8 mm
+- 가이드 포함 A4 영역 초과 여부 상태 표시
 
-**회귀 금지:** 프레임 안쪽에 흰색/배경색 seam이 다시 보이는 구조로 되돌리지 않는다.
+### 3. 슬롯별 독립 Frame State
 
-### 2. 이름 / 글자 레이어
+전역 state.frame을 제거했다.
 
-각 사진 슬롯별로 독립적으로 저장한다.
+각 slot.frame이 다음을 독립 저장한다.
 
-- 이름 / 주 문구
-- 보조 문구
-- 위 / 가운데 / 아래 위치
-- X / Y mm 오프셋
-- 글자 크기(mm)
-- 글자 색
-- 400 / 700 / 900 굵기
-- 외곽선 사용 여부
-- 외곽선 색
-- 긴 이름은 사진 폭에 맞게 자동 축소
-- 글자 설정을 다른 슬롯에 복사
+- style
+- backgroundColor
+- lineColor
+- width
+- radius
+- pattern
+- patternColor1
+- patternColor2
+- patternSize
+- patternGap
+- patternRandom
+- patternSeed
+- texture
+- textureStrength
+- presetIndex
 
-### 3. 폰트
+따라서 1번은 핑크 도트, 2번은 민트 별처럼 완전히 다르게 설정 가능하다.
 
-세 가지 경로를 지원한다.
+### 4. Pattern Engine
 
-1. 기본 시스템/일반 폰트 목록
-2. `window.queryLocalFonts()`를 이용한 설치 폰트 검색
-3. 사용자가 직접 TTF / OTF / WOFF / WOFF2 파일 불러오기
+지원 패턴:
 
-Local Font Access API는 브라우저 지원 및 사용자 권한에 따라 사용할 수 없을 수 있다. 이 경우 폰트 파일 직접 불러오기가 정상 fallback이다.
+1. none
+2. dots
+3. stripes
+4. checker
+5. diamonds
+6. stars
+7. hearts
+8. flowers
+9. waves
+10. zigzag
+11. confetti
+12. sprinkles
+13. crayon
 
-사용자 폰트는 `FontFace`로 브라우저 세션에 등록하고 Canvas의 300 DPI PNG 렌더링에도 동일하게 사용한다.
+#### 도트 패턴 규칙
 
-**주의:** 사용자 폰트 파일 자체를 저장소에 포함하거나 서버로 업로드하지 않는다.
+도트는 난수로 찍지 않는다.
 
-### 4. 사진 좌우 반전
+linePositions(start, end, desiredStep)로 각 변 길이에서 표시 개수를 계산한 후 실제 간격을 균등 분배한다.
 
-활성 슬롯별 `flipX` 상태를 저장하며 Canvas transform에서 처리한다.
+- 모든 도트 반지름 동일
+- 각 변에서 균일 간격
+- 둥근 모서리 영역은 inset 처리
+- patternRandom이 도트에 영향을 주지 않음
 
-## 현재 지원 기능
+회귀 금지: 도트 좌표를 프레임 전체 난수 배치 방식으로 되돌리지 않는다.
 
-1. A4 세로 / 가로
-2. 1 / 2 / 4-up 자동 배치
-3. 슬롯별 독립 이미지
-4. 같은 사진 다른 슬롯 복사
-5. 사진 드래그 이동
-6. 1~4배 확대
-7. -15~+15도 회전
-8. 좌우 반전
-9. 8종 프레임 프리셋
-10. 8종 프레임 스타일
-11. 4종 질감 설정
-12. 프레임 두께 1~12 mm
-13. 둥근 모서리 0~12 mm
-14. 점선 / 실선 / Crop Mark / 복합 가이드
-15. 가이드 간격 조절
-16. 사진 안전영역 3 mm
-17. 슬롯별 이름 / 보조 문구
-18. 글자 크기 / 위치 / 색 / 굵기 / 외곽선
-19. 시스템 설치 폰트 검색
-20. TTF / OTF / WOFF / WOFF2 직접 로드
-21. A4 300 DPI PNG Export
-22. 브라우저 Print
+#### 랜덤 패턴
 
-## 파일 구조
+컨페티/스프링클/크레용 및 일부 장식 패턴은 해시 기반 deterministic random 사용.
 
-### index.html
-- 전체 편집 UI
-- A4 / 사진 / 프레임 / 텍스트 / 폰트 / 가이드 / 출력 설정
+- 같은 seed → 항상 같은 결과
+- 미리보기와 300 DPI 저장 결과 배열 일치
+- 화면 재렌더 시 패턴 위치가 흔들리지 않음
+- Random Seed 버튼으로 새 배치 생성
 
-### style.css
-- 데스크톱/모바일 반응형 UI
-- 폰트/텍스트 입력 UI
-- 인쇄 전용 CSS
+### 5. Pattern Control
 
-### app.js
-- Canvas Renderer
-- mm → px 변환
-- 300 DPI 재렌더링
-- Crop / Zoom / Pan / Rotate / Flip
-- Frame Ring / Texture / Guide
-- Frame-photo bleed 처리
-- Text renderer
-- Local Font Access
-- FontFace 사용자 폰트 로더
+- 패턴 종류
+- Pattern Color 1
+- Pattern Color 2
+- Pattern Size
+- Pattern Gap
+- Randomness
+- Seed
 
-## 검증 포인트
+프레임 배경 단색과 패턴은 분리된 레이어다.
 
-향후 패치 전 반드시 확인:
+### 6. Frame Copy
 
-- Pink/other frame 안쪽에 흰 줄이 생기지 않는가
-- 89 × 119 mm 사진 영역이 바뀌지 않았는가
-- 프레임 두께가 사진 영역을 침범하지 않는가
-- 이름 텍스트가 Preview와 PNG에서 동일한가
-- 업로드한 사용자 폰트가 300 DPI PNG에도 적용되는가
-- 1/2/4 슬롯 전환 후 각 슬롯 텍스트/사진 상태가 유지되는가
-- A4 PNG가 2480×3508 또는 3508×2480으로 저장되는가
-- GitHub Pages에서 외부 서버 없이 실행되는가
+프레임 설정을 다른 칸에 복사는 frame 객체만 deep copy한다. 사진/텍스트는 변경하지 않는다.
 
-## 알려진 한계
+## v0.2.0 회귀 방지
 
-- Local Font Access는 Chromium 계열 일부 환경에서만 지원될 수 있고 사용자 권한이 필요하다.
-- 브라우저/프린터 드라이버가 강제로 여백 또는 자동 축소를 적용하면 실물 출력 크기가 달라질 수 있다.
-- HEIC는 브라우저가 직접 디코딩하지 못하는 환경이 있다.
-- 사용자 폰트는 브라우저 새로고침 후 자동 복원되지 않는다. 재접속 시 다시 불러와야 한다.
-- PDF 직접 생성은 아직 없으며 브라우저 PDF 인쇄로 대체한다.
-- 스티커/장식 레이어는 아직 미구현이다.
+프레임과 사진 경계는 Photo → 0.18~0.45 mm Bleed → Frame Overlay → Text 순서를 유지한다.
 
-## 다음 개발 후보 — v0.3.0
+폰트는 Local Font Access와 TTF / OTF / WOFF / WOFF2 직접 로드를 유지하고 업로드 파일은 서버로 보내지 않는다.
 
-- 별 / 하트 / 구름 / 꽃 / 동물 등 어린이집용 스티커 레이어
-- 스티커 이동 / 크기 / 회전 / 투명도
-- 사용자 텍스트/프레임 프리셋 LocalStorage 저장
-- 프레임마다 개별 프레임 스타일 설정
-- 여러 사진 일괄 업로드 및 자동 슬롯 배치
-- 6 / 8 / 9-up 소형 출력 템플릿
-- 프린터 실측 보정용 100 mm Calibration Ruler
-- PDF 직접 Export 검토
+## 정적 검증 결과
 
-## 회귀 방지
+- JavaScript Syntax: OK
+- JS DOM ID 누락: 0
+- 4장 레이아웃 코드/UI: 없음
+- 최대 2장 방어 코드: 있음
+- slot.frame 독립 상태: 있음
+- deterministic dot renderer: 있음
+- 12개 신규 패턴 renderer: 있음
+- patternSeed: 있음
+- Photo Bleed → Frame Overlay: 유지
 
-향후 수정 시 아래는 반드시 유지한다.
+## 다음 패치 후보
 
-- **89 × 119 mm 기본 사진 크기**
-- A4 실측 mm 기준
-- 300 DPI Export
-- 프레임은 사진 바깥쪽에만 존재
-- 사진이 프레임 아래까지 bleed되어 흰 seam이 생기지 않는 구조
-- 외부 서버/API 없이 기본 기능 동작
-- GitHub Pages 정적 호스팅
-- 사진/폰트 로컬 처리
-- 개발 완료 시 GitHub 반영 + 최신 ZIP + 누적 HANDOFF.md 제공
+- 어린이집용 스티커 레이어
+- 스티커 이동·회전·크기
+- 사용자 프레임/패턴 프리셋 LocalStorage 저장
+- 사용자 패턴 이미지 업로드
+- 투명 PNG 패턴 타일 지원
+- 패턴 회전 각도
+- 패턴 불투명도
+- 프린터 100 mm Calibration Ruler
+- PDF 직접 Export
 
 ## 새 채팅 시작용 프롬프트
 
-`maxVFX Photo Frame Print Tool v0.2.0을 이어서 개발한다. GitHub 저장소 kdc916/Photo_Frame_Print_Tool의 main을 최신 기준으로 사용한다. HANDOFF.md의 회귀 방지 항목을 모두 유지한다. 특히 89×119mm 사진 영역, A4 300DPI 출력, 프레임 안쪽 흰 seam 방지용 photo bleed → frame overlay 렌더 순서를 변경하지 않는다. 현재 이름/보조문구, Local Font Access, TTF/OTF/WOFF/WOFF2 사용자 폰트, 좌우 반전까지 구현되어 있다. 다음 패치는 어린이집용 스티커 레이어와 사용자 프리셋 저장, 프레임별 독립 설정을 우선 검토한다. 최종 결과는 GitHub main 반영, 전체 ZIP, 누적 HANDOFF.md를 함께 제공한다.`
+maxVFX Photo Frame Print Tool v0.3.0을 이어서 개발한다. GitHub kdc916/Photo_Frame_Print_Tool main을 최신 기준으로 사용한다. A4 한 장 최대 2장, 기본 사진 89×119mm, 300DPI 출력, slot.frame 독립 구조를 유지한다. 도트는 linePositions 기반 균등 배치이며 난수 배치로 되돌리지 않는다. Photo Bleed → Frame Overlay 흰 seam 방지 구조도 유지한다. 현재 패턴은 dots/stripes/checker/diamonds/stars/hearts/flowers/waves/zigzag/confetti/sprinkles/crayon이며 Size/Gap/Random/Seed/Color1/Color2가 슬롯별 독립이다. 최종 작업은 GitHub main 반영 + ZIP + 누적 HANDOFF.md로 제공한다.
