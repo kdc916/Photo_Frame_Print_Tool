@@ -2,7 +2,7 @@
 
 ## 최신 안정 기준
 
-- 버전: **v0.3.1 Pattern Alignment & Direct Frame Selection**
+- 버전: **v0.3.2 Continuous Perimeter Pattern Spacing**
 - 기준일: 2026-10-01
 - 저장소: kdc916/Photo_Frame_Print_Tool
 - 배포: GitHub Pages / main root
@@ -17,75 +17,67 @@
 - Photo → Bleed → Frame Overlay → Text 렌더 순서
 - 사진/폰트 서버 업로드 없음
 
-## v0.3.1 변경 내용
+## v0.3.2 변경 내용
 
-### 1. 패턴 정렬 재설계
+### 문제
 
-문제:
-- 다이아몬드처럼 큰 패턴이 프레임 띠 전체 타일 방식으로 렌더되어 inner/outer clip에 반쯤 잘림
-- 모서리에서 패턴 시작/종료가 어색하게 보임
-- 패턴 크기를 키울수록 정렬 불균형이 눈에 띔
+v0.3.1의 장식 패턴은 프레임 각 변을 독립적으로 균등 분배했다.
+이 때문에 top/right, right/bottom 같은 모서리에서 각 변의 첫/마지막 패턴이 서로 가까워져 2개가 고정된 것처럼 보일 수 있었다.
 
-수정:
-- dots / diamonds / stars / hearts / flowers를 Perimeter Symbol 방식으로 통합
-- 프레임 두께 중심선에 패턴 배치
-- cornerInset을 계산해 네 모서리에는 안전영역 확보
-- linePositions()로 각 변별 패턴 개수를 계산하고 실제 간격을 균등 재분배
-- 요청 Pattern Size가 프레임 폭보다 크면 band 기준으로 자동 제한
-- syncFrameControls에서 장식형 패턴의 Size Range max를 현재 frame.width 기준으로 갱신
-- frame width / pattern type 변경 시 normalizePatternSize()를 호출해 UI값과 실제 렌더 크기를 일치
+### 해결
 
-다이아몬드는 기존 전체 타일 렌더를 제거하고 drawRegularEdgeSymbols + drawDiamond 방식으로 변경했다.
+drawRegularEdgeSymbols()를 네 변 독립 계산 방식에서 전체 Rounded Rectangle Perimeter 방식으로 변경했다.
 
-### 2. 반복형 패턴 중심 정렬
+추가 함수:
+- roundedPerimeterMetrics(g, ppm, frame)
+- pointOnRoundedPerimeter(metrics, distance)
 
-- checker: 프레임 중심점 기준으로 tile origin 계산
-- stripes: diagonal phase를 frame center 기준으로 정렬
-- waves / zigzag: 상하 중심 기준으로 row 위치 균등 배치
+알고리즘:
+1. 프레임 띠 중앙선을 기준으로 둥근 사각형 center path 계산
+2. 직선 길이 + 4개 quarter arc 길이로 전체 perimeter 계산
+3. desiredStep = patternSize + patternGap 기준으로 count 결정
+4. actualStep = perimeter / count 로 남는 길이를 전체 둘레에 균등 분배
+5. phase = actualStep * 0.5 로 시작해 모서리나 특정 축에 패턴이 고정되지 않도록 처리
+6. 모든 패턴은 phase + index * actualStep 위치에서 하나의 연속 경로를 따라 배치
 
-### 3. Preview Direct Frame Selection
+결과:
+- 모서리 중복 패턴 제거
+- 직선/곡선 모두 동일 중심 간격
+- 패턴 크기 변경 시 개수 자동 변화
+- Preview / 300 DPI Export에서 동일 배치
 
-A4 Canvas에서 프레임 자체를 클릭해 활성 슬롯 변경 가능.
+### 적용 패턴
 
-동작:
-- 사진 내부 클릭: 현재 사진 활성화 + drag 시작
-- 프레임 띠 클릭: 현재 프레임 활성화
-- 프레임 클릭 시 framePatternSection으로 smooth scroll
-- framePatternSection에 약 1.2초 highlight
-- 선택 프레임은 outer frame 바깥쪽 점선으로 표시
-- hover cursor: Photo = grab / Frame = pointer
+- dots
+- diamonds
+- stars
+- hearts
+- flowers
 
-관련 함수:
-- hitPhoto()
-- hitFrame()
-- activateSlot()
-- focusFrameEditor()
+## 회귀 금지
 
-## 패턴 회귀 방지
+장식형 패턴을 다시 top/bottom/left/right 네 변별 배열로 분리하지 않는다.
+특히 모서리에 각 변의 패턴이 각각 하나씩 생겨 2개가 붙는 구조로 돌아가면 안 된다.
 
-장식형 패턴(dots/diamonds/stars/hearts/flowers)은 다시 프레임 전체 타일 방식으로 되돌리지 않는다.
+패턴 간격은 단순 고정 개수가 아니라 Pattern Size + Pattern Gap을 기준으로 전체 둘레의 count를 계산하고 actualStep으로 재분배해야 한다.
 
-특히 diamonds는 프레임 띠 중앙선에 균일 배치해야 하며 사진 안쪽으로 큰 삼각형/반쪽 다이아가 보이는 상태로 회귀하면 안 된다.
+## v0.3.1 유지
 
-## v0.3.0 유지
-
-- A4 최대 2장
-- 1/2번 독립 Frame State
-- backgroundColor + pattern layer 분리
-- Pattern Color1 / Color2 / Size / Gap / Random / Seed
-- deterministic random
-- 프레임 설정 다른 칸 복사
+- 장식형 패턴은 frame band 중심에 위치
+- Pattern Size는 frame.width에 맞춰 자동 제한
+- Preview에서 frame band 클릭 → 슬롯 활성화 → framePatternSection 자동 이동
+- 체크 / 줄무늬 / 물결 / 지그재그 중심 정렬
 
 ## 정적 검증
 
 - JavaScript Syntax: OK
 - JS DOM ID 누락: 0
-- framePatternSection 존재
-- hitFrame direct selection 존재
-- diamond perimeter renderer 존재
-- corner-safe regular pattern 존재
-- centered checker / stripe 존재
-- outer frame selection 표시 존재
+- continuous rounded perimeter 함수 존재
+- actualStep = perimeter / count 존재
+- half-step phase 존재
+- 이전 cornerInset + 네 변 독립 배치 제거
+- Direct Frame Selection 유지
+- Pattern Size Guard 유지
 - Photo Bleed 유지
 
 ## 다음 개발 후보
@@ -100,4 +92,4 @@ A4 Canvas에서 프레임 자체를 클릭해 활성 슬롯 변경 가능.
 
 ## 새 채팅 시작용 프롬프트
 
-maxVFX Photo Frame Print Tool v0.3.1을 이어서 개발한다. GitHub kdc916/Photo_Frame_Print_Tool main이 최신 기준이다. A4 최대 2장, 89×119mm, 300DPI, slot.frame 독립 구조를 유지한다. dots/diamonds/stars/hearts/flowers는 frame band center 기반 Perimeter Symbol 방식이며 corner-safe 균등 배치를 유지한다. A4 미리보기에서 프레임 띠를 클릭하면 해당 슬롯이 선택되고 framePatternSection으로 이동하는 UX도 유지한다. Photo Bleed → Frame Overlay 구조를 변경하지 않는다. 최종 결과는 GitHub main 반영 + ZIP + 누적 HANDOFF.md로 제공한다.
+maxVFX Photo Frame Print Tool v0.3.2를 이어서 개발한다. GitHub kdc916/Photo_Frame_Print_Tool main이 최신 기준이다. A4 최대 2장, 89×119mm, 300DPI, slot.frame 독립 구조를 유지한다. dots/diamonds/stars/hearts/flowers는 roundedPerimeterMetrics + pointOnRoundedPerimeter 기반으로 프레임 전체 둘레를 하나의 연속 경로로 배치한다. Pattern Size + Gap으로 count를 구한 뒤 actualStep = perimeter/count로 전체 간격을 균등 분배하고 half-step phase를 유지한다. 네 변 독립 배치로 되돌리지 않는다. A4 미리보기 프레임 직접 선택 및 Photo Bleed → Frame Overlay 구조도 유지한다. 최종 결과는 GitHub main 반영 + ZIP + 누적 HANDOFF.md로 제공한다.
