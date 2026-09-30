@@ -27,12 +27,11 @@
         <section class="control-section">
           <div class="section-title-row">
             <h2>1. A4 배치</h2>
-            <span class="badge">210 × 297 mm</span>
+            <span class="badge">최대 2장</span>
           </div>
-          <div class="segmented" id="layoutButtons">
+          <div class="segmented two-segments" id="layoutButtons">
             <button type="button" data-layout="1" class="active">1장</button>
             <button type="button" data-layout="2">2장</button>
-            <button type="button" data-layout="4">4장</button>
           </div>
           <label class="field-row">
             <span>용지 방향</span>
@@ -51,7 +50,7 @@
               <input id="photoHeight" type="number" min="30" max="250" step="1" value="119" />
             </label>
           </div>
-          <p class="hint">기본값은 요청하신 89 × 119 mm입니다. 프레임은 사진 바깥으로 추가됩니다.</p>
+          <p class="hint">A4 한 장에는 최대 2장만 배치합니다. 기본 사진 영역은 89 × 119 mm이며 프레임은 사진 바깥쪽에 추가됩니다.</p>
         </section>
 
         <section class="control-section">
@@ -79,37 +78,45 @@
             <button id="fitBtn" type="button" class="btn small secondary">사진 맞춤</button>
             <button id="centerBtn" type="button" class="btn small ghost">중앙 정렬</button>
             <button id="flipXBtn" type="button" class="btn small ghost">좌우 반전</button>
-            <button id="copyPhotoBtn" type="button" class="btn small ghost">다른 칸에 복사</button>
+            <button id="copyPhotoBtn" type="button" class="btn small ghost">사진을 다른 칸에 복사</button>
           </div>
           <p class="hint">미리보기의 사진 영역을 마우스/터치로 드래그하면 위치를 직접 맞출 수 있습니다.</p>
         </section>
 
         <section class="control-section">
-          <h2>3. 프레임 스타일</h2>
+          <div class="section-title-row">
+            <h2>3. 프레임 / 패턴</h2>
+            <span id="frameSlotBadge" class="badge accent">1번 프레임</span>
+          </div>
+
           <div id="presetGrid" class="preset-grid"></div>
+
+          <div class="button-row frame-copy-row">
+            <button id="copyFrameBtn" type="button" class="btn small ghost">프레임 설정을 다른 칸에 복사</button>
+          </div>
+
+          <div class="subsection-title">프레임 기본</div>
           <label class="field-row">
             <span>테두리 형태</span>
             <select id="frameStyle">
-              <option value="solid">단색</option>
+              <option value="plain">기본</option>
               <option value="double">이중선</option>
               <option value="dashed">점선</option>
-              <option value="dots">도트</option>
-              <option value="stripes">사선 스트라이프</option>
-              <option value="scallop">물결 / 스캘럽</option>
-              <option value="confetti">컨페티</option>
-              <option value="crayon">크레용</option>
+              <option value="scallop">스캘럽</option>
             </select>
           </label>
+
           <div class="mini-grid two">
             <label>
-              <span>기본 색상</span>
+              <span>배경 색상</span>
               <input id="frameColor" type="color" value="#ffb7c5" />
             </label>
             <label>
-              <span>보조 색상</span>
-              <input id="frameColor2" type="color" value="#fff2a8" />
+              <span>라인 색상</span>
+              <input id="frameLineColor" type="color" value="#f27f99" />
             </label>
           </div>
+
           <div class="range-row">
             <label for="frameWidthRange">두께</label>
             <input id="frameWidthRange" type="range" min="1" max="12" step="0.5" value="5" />
@@ -120,6 +127,65 @@
             <input id="radiusRange" type="range" min="0" max="12" step="0.5" value="4" />
             <output id="radiusValue">4 mm</output>
           </div>
+
+          <div class="subsection-title">패턴</div>
+          <label class="field-row">
+            <span>패턴 종류</span>
+            <select id="patternType">
+              <option value="none">없음</option>
+              <option value="dots">도트</option>
+              <option value="stripes">사선 줄무늬</option>
+              <option value="checker">체크</option>
+              <option value="diamonds">다이아몬드</option>
+              <option value="stars">별</option>
+              <option value="hearts">하트</option>
+              <option value="flowers">꽃</option>
+              <option value="waves">물결</option>
+              <option value="zigzag">지그재그</option>
+              <option value="confetti">컨페티</option>
+              <option value="sprinkles">스프링클</option>
+              <option value="crayon">크레용</option>
+            </select>
+          </label>
+
+          <div class="mini-grid two">
+            <label>
+              <span>패턴 색상 1</span>
+              <input id="patternColor1" type="color" value="#ffffff" />
+            </label>
+            <label>
+              <span>패턴 색상 2</span>
+              <input id="patternColor2" type="color" value="#ffd86f" />
+            </label>
+          </div>
+
+          <div class="range-row">
+            <label for="patternSizeRange">패턴 크기</label>
+            <input id="patternSizeRange" type="range" min="0.6" max="10" step="0.2" value="2.2" />
+            <output id="patternSizeValue">2.2 mm</output>
+          </div>
+          <div class="range-row">
+            <label for="patternGapRange">패턴 간격</label>
+            <input id="patternGapRange" type="range" min="1" max="16" step="0.5" value="4" />
+            <output id="patternGapValue">4 mm</output>
+          </div>
+          <div class="range-row">
+            <label for="patternRandomRange">랜덤성</label>
+            <input id="patternRandomRange" type="range" min="0" max="1" step="0.05" value="0" />
+            <output id="patternRandomValue">0%</output>
+          </div>
+
+          <div class="mini-grid seed-grid">
+            <label>
+              <span>랜덤 시드</span>
+              <input id="patternSeed" type="number" min="1" max="99999" step="1" value="1201" />
+            </label>
+            <button id="randomSeedBtn" type="button" class="btn small ghost">시드 변경</button>
+          </div>
+
+          <p class="hint">도트·체크·줄무늬처럼 규칙적인 패턴은 항상 균등 배치됩니다. 랜덤성은 컨페티·스프링클·크레용·장식 패턴에서 위치/각도 변화량을 조절합니다.</p>
+
+          <div class="subsection-title">질감</div>
           <label class="field-row">
             <span>질감</span>
             <select id="textureSelect">
@@ -231,7 +297,6 @@
           <div class="button-row">
             <button id="copyTextBtn" type="button" class="btn small ghost">글자 설정을 다른 칸에 복사</button>
           </div>
-          <p class="hint">이름과 보조 문구는 각 사진별로 따로 저장됩니다. 업로드한 폰트도 300 DPI PNG 저장에 그대로 적용됩니다.</p>
         </section>
 
         <section class="control-section">
