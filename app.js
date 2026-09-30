@@ -55,6 +55,19 @@
       rotation: 0,
       offsetX: 0,
       offsetY: 0,
+      flipX: false,
+      nameText: '',
+      secondaryText: '',
+      fontFamily: 'system-ui',
+      fontLabel: '기본 시스템',
+      textSize: 8,
+      textColor: '#ffffff',
+      textPosition: 'bottom',
+      textOffsetX: 0,
+      textOffsetY: 0,
+      textWeight: 700,
+      textOutline: true,
+      outlineColor: '#6d554b',
     };
   }
 
@@ -123,12 +136,25 @@
 
   function drawPhoto(context, slot, r, ppm) {
     const x = r.photoX * ppm, y = r.photoY * ppm, w = r.photoW * ppm, h = r.photoH * ppm;
+    const bleedMm = Math.min(0.45, Math.max(0.18, state.frame.width * 0.08));
+    const bleed = bleedMm * ppm;
+    const innerRadiusMm = Math.max(0, state.frame.radius - state.frame.width * 0.65);
+
     context.save();
     context.beginPath();
-    roundedRectPath(context, x, y, w, h, Math.max(0, (state.frame.radius - 0.8) * ppm));
+    roundedRectPath(
+      context,
+      x - bleed,
+      y - bleed,
+      w + bleed * 2,
+      h + bleed * 2,
+      (innerRadiusMm + bleedMm) * ppm
+    );
     context.clip();
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
     context.fillStyle = '#f3f0ed';
-    context.fillRect(x, y, w, h);
+    context.fillRect(x - bleed, y - bleed, w + bleed * 2, h + bleed * 2);
 
     if (!slot.image) {
       context.fillStyle = '#9f9892';
@@ -153,7 +179,78 @@
 
     context.translate(cx, cy);
     context.rotate(slot.rotation * Math.PI / 180);
+    context.scale(slot.flipX ? -1 : 1, 1);
     context.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+    context.restore();
+  }
+
+  function fontStack(family) {
+    if (!family || family === 'system-ui') return 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    return '"' + String(family).replace(/["\\]/g, '') + '", sans-serif';
+  }
+
+  function fitTextSize(context, text, desiredSize, maxWidth, weight, family) {
+    let size = desiredSize;
+    context.font = weight + ' ' + size + 'px ' + fontStack(family);
+    const measured = context.measureText(text).width;
+    if (measured > maxWidth && measured > 0) size *= maxWidth / measured;
+    return Math.max(desiredSize * 0.42, size);
+  }
+
+  function drawTextLine(context, text, cx, cy, desiredSize, maxWidth, slot, ppm) {
+    if (!text) return;
+    const size = fitTextSize(context, text, desiredSize, maxWidth, slot.textWeight, slot.fontFamily);
+    context.font = slot.textWeight + ' ' + size + 'px ' + fontStack(slot.fontFamily);
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.lineJoin = 'round';
+    context.lineCap = 'round';
+
+    if (slot.textOutline) {
+      context.strokeStyle = slot.outlineColor;
+      context.lineWidth = Math.max(1, 0.45 * ppm);
+      context.strokeText(text, cx, cy);
+    }
+    context.fillStyle = slot.textColor;
+    context.fillText(text, cx, cy);
+  }
+
+  function drawTextLayer(context, slot, r, ppm) {
+    const primary = (slot.nameText || '').trim();
+    const secondary = (slot.secondaryText || '').trim();
+    if (!primary && !secondary) return;
+
+    const x = r.photoX * ppm, y = r.photoY * ppm, w = r.photoW * ppm, h = r.photoH * ppm;
+    const innerRadius = Math.max(0, state.frame.radius - state.frame.width * 0.65) * ppm;
+    const baseSize = Math.max(3, slot.textSize) * ppm;
+    const secondSize = primary ? Math.max(2.6 * ppm, baseSize * 0.48) : Math.max(2.8 * ppm, baseSize * 0.68);
+    const gap = secondary && primary ? 1.2 * ppm : 0;
+    const line1H = primary ? baseSize : 0;
+    const line2H = secondary ? secondSize : 0;
+    const groupH = line1H + gap + line2H;
+    const pad = 4 * ppm;
+
+    let top;
+    if (slot.textPosition === 'top') top = y + pad;
+    else if (slot.textPosition === 'center') top = y + (h - groupH) / 2;
+    else top = y + h - groupH - pad;
+
+    const cx = x + w / 2 + slot.textOffsetX * ppm;
+    top += slot.textOffsetY * ppm;
+
+    context.save();
+    context.beginPath();
+    roundedRectPath(context, x, y, w, h, innerRadius);
+    context.clip();
+
+    let cursor = top;
+    if (primary) {
+      drawTextLine(context, primary, cx, cursor + baseSize / 2, baseSize, w - pad * 2, slot, ppm);
+      cursor += baseSize + gap;
+    }
+    if (secondary) {
+      drawTextLine(context, secondary, cx, cursor + secondSize / 2, secondSize, w - pad * 2, slot, ppm);
+    }
     context.restore();
   }
 
@@ -345,8 +442,9 @@
 
     const rects = getLayoutRects();
     rects.forEach((r, i) => {
-      drawFrame(c, r, ppm);
       drawPhoto(c, state.slots[i], r, ppm);
+      drawFrame(c, r, ppm);
+      drawTextLayer(c, state.slots[i], r, ppm);
       drawSafeArea(c, r, ppm);
       drawGuide(c, r, ppm);
       if (showSelection && i === state.activeSlot) {
@@ -403,6 +501,21 @@
     el('zoomValue').textContent = `${Number(slot.zoom).toFixed(2)}×`;
     el('rotateRange').value = slot.rotation;
     el('rotateValue').textContent = `${Number(slot.rotation).toFixed(1).replace('.0','')}°`;
+    el('flipXBtn').classList.toggle('is-active', !!slot.flipX);
+    el('flipXBtn').textContent = slot.flipX ? '좌우 반전 ✓' : '좌우 반전';
+
+    el('nameText').value = slot.nameText || '';
+    el('secondaryText').value = slot.secondaryText || '';
+    el('textSize').value = slot.textSize;
+    el('textColor').value = slot.textColor;
+    el('textPosition').value = slot.textPosition;
+    el('textOffsetX').value = slot.textOffsetX;
+    el('textOffsetY').value = slot.textOffsetY;
+    el('textWeight').value = String(slot.textWeight);
+    el('textOutlineToggle').checked = !!slot.textOutline;
+    el('outlineColor').value = slot.outlineColor;
+    ensureFontOption(slot.fontFamily, slot.fontLabel || slot.fontFamily);
+    el('fontSelect').value = slot.fontFamily;
     updateStatus();
   }
 
@@ -435,6 +548,70 @@
       b.addEventListener('click', () => applyPreset(index));
       wrap.appendChild(b);
     });
+  }
+
+  function ensureFontOption(value, label) {
+    const select = el('fontSelect');
+    const exists = Array.from(select.options).some(option => option.value === value);
+    if (!exists) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label || value;
+      select.appendChild(option);
+    }
+  }
+
+  function setFontStatus(message, stateName) {
+    const status = el('fontStatus');
+    status.textContent = message;
+    if (stateName) status.dataset.state = stateName;
+    else delete status.dataset.state;
+  }
+
+  async function scanSystemFonts() {
+    if (typeof window.queryLocalFonts !== 'function') {
+      setFontStatus('이 브라우저는 설치 폰트 목록 검색을 지원하지 않습니다. 폰트 파일 불러오기를 사용해 주세요.', 'warn');
+      return;
+    }
+    try {
+      setFontStatus('설치된 폰트를 확인하는 중입니다…');
+      const fonts = await window.queryLocalFonts();
+      const families = Array.from(new Set(fonts.map(font => font.family).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b, 'ko'));
+      families.forEach(family => ensureFontOption(family, family));
+      setFontStatus('설치 폰트 ' + families.length + '개를 찾았습니다. 폰트 목록에서 선택하세요.', 'ok');
+    } catch (error) {
+      const denied = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
+      setFontStatus(
+        denied
+          ? '설치 폰트 접근 권한이 허용되지 않았습니다. 폰트 파일을 직접 불러올 수 있습니다.'
+          : '설치 폰트를 확인하지 못했습니다. 폰트 파일을 직접 불러와 주세요.',
+        'error'
+      );
+    }
+  }
+
+  async function loadFontFile(file) {
+    if (!file) return;
+    try {
+      setFontStatus('폰트 파일을 불러오는 중입니다…');
+      const buffer = await file.arrayBuffer();
+      const family = 'maxVFX_UserFont_' + Date.now();
+      const face = new FontFace(family, buffer);
+      await face.load();
+      document.fonts.add(face);
+
+      const label = file.name.replace(/\.[^.]+$/, '') || '사용자 폰트';
+      ensureFontOption(family, label + ' · 불러옴');
+      const slot = state.slots[state.activeSlot];
+      slot.fontFamily = family;
+      slot.fontLabel = label + ' · 불러옴';
+      el('fontSelect').value = family;
+      setFontStatus('“' + label + '” 폰트를 적용했습니다. 현재 브라우저 세션과 PNG 출력에 사용됩니다.', 'ok');
+      render();
+    } catch (error) {
+      setFontStatus('폰트를 읽지 못했습니다. TTF, OTF, WOFF, WOFF2 파일인지 확인해 주세요.', 'error');
+    }
   }
 
   function loadImage(file) {
@@ -515,6 +692,7 @@
     el('guideColor').value = '#8a8a8a';
     el('guideOffset').value = 2;
     el('safeAreaToggle').checked = false;
+    setFontStatus('설치 폰트 검색은 지원되는 Chrome/Edge에서 사용할 수 있습니다. 폰트 파일은 브라우저 안에서만 사용됩니다.');
     setLayout(1);
     document.querySelectorAll('.preset').forEach((node, i) => node.classList.toggle('active', i === 0));
     render();
@@ -569,14 +747,95 @@
   el('rotateRange').addEventListener('input', e => { const s = state.slots[state.activeSlot]; s.rotation = Number(e.target.value); el('rotateValue').textContent = `${s.rotation.toFixed(1).replace('.0','')}°`; render(); });
   el('fitBtn').addEventListener('click', () => { const s = state.slots[state.activeSlot]; s.zoom = 1; s.rotation = 0; s.offsetX = 0; s.offsetY = 0; syncPhotoControls(); render(); });
   el('centerBtn').addEventListener('click', () => { const s = state.slots[state.activeSlot]; s.offsetX = 0; s.offsetY = 0; render(); });
+  el('flipXBtn').addEventListener('click', () => {
+    const slot = state.slots[state.activeSlot];
+    slot.flipX = !slot.flipX;
+    syncPhotoControls();
+    render();
+  });
   el('copyPhotoBtn').addEventListener('click', () => {
     const src = state.slots[state.activeSlot];
     if (!src.image) return alert('먼저 사진을 불러와 주세요.');
     state.slots.forEach((s, i) => {
       if (i === state.activeSlot) return;
-      s.image = src.image; s.imageUrl = null; s.imageName = src.imageName; s.zoom = src.zoom; s.rotation = src.rotation; s.offsetX = src.offsetX; s.offsetY = src.offsetY;
+      s.image = src.image; s.imageUrl = null; s.imageName = src.imageName; s.zoom = src.zoom; s.rotation = src.rotation; s.offsetX = src.offsetX; s.offsetY = src.offsetY; s.flipX = src.flipX;
     });
     renderSlotTabs(); render();
+  });
+
+  el('nameText').addEventListener('input', e => {
+    state.slots[state.activeSlot].nameText = e.target.value;
+    render();
+  });
+  el('secondaryText').addEventListener('input', e => {
+    state.slots[state.activeSlot].secondaryText = e.target.value;
+    render();
+  });
+  el('textSize').addEventListener('input', e => {
+    state.slots[state.activeSlot].textSize = Math.min(24, Math.max(3, Number(e.target.value) || 8));
+    render();
+  });
+  el('textColor').addEventListener('input', e => {
+    state.slots[state.activeSlot].textColor = e.target.value;
+    render();
+  });
+  el('textPosition').addEventListener('change', e => {
+    state.slots[state.activeSlot].textPosition = e.target.value;
+    render();
+  });
+  el('textOffsetX').addEventListener('input', e => {
+    state.slots[state.activeSlot].textOffsetX = Math.min(40, Math.max(-40, Number(e.target.value) || 0));
+    render();
+  });
+  el('textOffsetY').addEventListener('input', e => {
+    state.slots[state.activeSlot].textOffsetY = Math.min(40, Math.max(-40, Number(e.target.value) || 0));
+    render();
+  });
+  el('textWeight').addEventListener('change', e => {
+    state.slots[state.activeSlot].textWeight = Number(e.target.value) || 700;
+    render();
+  });
+  el('textOutlineToggle').addEventListener('change', e => {
+    state.slots[state.activeSlot].textOutline = e.target.checked;
+    render();
+  });
+  el('outlineColor').addEventListener('input', e => {
+    state.slots[state.activeSlot].outlineColor = e.target.value;
+    render();
+  });
+  el('fontSelect').addEventListener('change', e => {
+    const slot = state.slots[state.activeSlot];
+    slot.fontFamily = e.target.value;
+    slot.fontLabel = e.target.options[e.target.selectedIndex]?.textContent || e.target.value;
+    if (document.fonts && document.fonts.load) {
+      document.fonts.load('700 32px ' + fontStack(slot.fontFamily), '가나다 ABC').finally(render);
+    } else {
+      render();
+    }
+  });
+  el('scanFontsBtn').addEventListener('click', scanSystemFonts);
+  el('fontFileInput').addEventListener('change', e => {
+    loadFontFile(e.target.files?.[0]);
+    e.target.value = '';
+  });
+  el('copyTextBtn').addEventListener('click', () => {
+    const src = state.slots[state.activeSlot];
+    state.slots.forEach((slot, index) => {
+      if (index === state.activeSlot) return;
+      slot.nameText = src.nameText;
+      slot.secondaryText = src.secondaryText;
+      slot.fontFamily = src.fontFamily;
+      slot.fontLabel = src.fontLabel;
+      slot.textSize = src.textSize;
+      slot.textColor = src.textColor;
+      slot.textPosition = src.textPosition;
+      slot.textOffsetX = src.textOffsetX;
+      slot.textOffsetY = src.textOffsetY;
+      slot.textWeight = src.textWeight;
+      slot.textOutline = src.textOutline;
+      slot.outlineColor = src.outlineColor;
+    });
+    render();
   });
 
   el('frameStyle').addEventListener('change', e => { state.frame.style = e.target.value; render(); });
