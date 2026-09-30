@@ -292,6 +292,21 @@
     context.restore();
   }
 
+  function drawDiamond(context, x, y, size, color, rotation) {
+    context.save();
+    context.translate(x, y);
+    context.rotate(rotation || 0);
+    context.fillStyle = color;
+    context.beginPath();
+    context.moveTo(0, -size * 0.5);
+    context.lineTo(size * 0.5, 0);
+    context.lineTo(0, size * 0.5);
+    context.lineTo(-size * 0.5, 0);
+    context.closePath();
+    context.fill();
+    context.restore();
+  }
+
   function drawHeart(context, x, y, size, color, rotation) {
     context.save();
     context.translate(x, y);
@@ -330,26 +345,41 @@
 
   function drawRegularEdgeSymbols(context, g, ppm, frame, symbol) {
     const band = frame.width * ppm;
-    const size = Math.min(frame.patternSize * ppm, band * 0.72);
-    const gap = frame.patternGap * ppm;
-    const step = Math.max(size + gap, size * 1.35);
-    const radiusInset = Math.max(frame.radius * ppm * 0.75, band * 0.55, size * 0.7);
-    const topY = g.y + band / 2;
-    const bottomY = g.y + g.h - band / 2;
-    const leftX = g.x + band / 2;
-    const rightX = g.x + g.w - band / 2;
+    const requested = Math.max(0.6, frame.patternSize) * ppm;
+    const size = Math.min(requested, band * 0.68);
+    const gap = Math.max(1, frame.patternGap) * ppm;
+    const desiredStep = Math.max(size + gap, size * 1.35);
 
-    const xs = linePositions(g.x + radiusInset, g.x + g.w - radiusInset, step);
-    const ys = linePositions(g.y + radiusInset, g.y + g.h - radiusInset, step);
+    // Keep all symbols on the center line of the frame band.
+    const topY = g.y + band * 0.5;
+    const bottomY = g.y + g.h - band * 0.5;
+    const leftX = g.x + band * 0.5;
+    const rightX = g.x + g.w - band * 0.5;
+
+    // Corners are intentionally left empty. This avoids half-clipped symbols and
+    // makes opposite sides use the same visible rhythm.
+    const cornerInset = Math.max(
+      frame.radius * ppm + size * 0.25,
+      band * 0.72,
+      size * 0.85
+    );
+
+    const xStart = g.x + cornerInset;
+    const xEnd = g.x + g.w - cornerInset;
+    const yStart = g.y + cornerInset;
+    const yEnd = g.y + g.h - cornerInset;
+
+    const xs = linePositions(xStart, xEnd, desiredStep);
+    const ys = linePositions(yStart, yEnd, desiredStep);
 
     let index = 0;
-    xs.forEach(function(px) {
-      symbol(px, topY, size, index++);
-      if (g.h > band * 2.2) symbol(px, bottomY, size, index++);
+    xs.forEach(function(px, idx) {
+      symbol(px, topY, size, index++, 'top', idx, xs.length);
+      symbol(px, bottomY, size, index++, 'bottom', idx, xs.length);
     });
-    ys.slice(1, -1).forEach(function(py) {
-      symbol(leftX, py, size, index++);
-      if (g.w > band * 2.2) symbol(rightX, py, size, index++);
+    ys.forEach(function(py, idx) {
+      symbol(leftX, py, size, index++, 'left', idx, ys.length);
+      symbol(rightX, py, size, index++, 'right', idx, ys.length);
     });
   }
 
@@ -405,46 +435,47 @@
       });
     } else if (frame.pattern === 'stripes') {
       context.strokeStyle = p1;
-      context.lineWidth = Math.max(0.7 * ppm, size * 0.34);
-      const step = Math.max(size + gap, 2.4 * ppm);
-      for (let k = -g.h; k < g.w + g.h; k += step) {
+      context.lineWidth = Math.max(0.7 * ppm, Math.min(size * 0.34, g.fw * 0.5));
+      const step = Math.max(Math.min(size, g.fw * 0.75) + gap, 2.4 * ppm);
+      // Center the diagonal phase so opposite edges remain visually balanced.
+      const centerK = g.w / 2 - g.h / 2;
+      const extent = g.w + g.h;
+      const count = Math.ceil(extent / step) + 2;
+      for (let n = -count; n <= count; n++) {
+        const k = centerK + n * step;
         context.beginPath();
         context.moveTo(g.x + k, g.y + g.h);
         context.lineTo(g.x + k + g.h, g.y);
         context.stroke();
       }
     } else if (frame.pattern === 'checker') {
-      const cell = Math.max(1.2 * ppm, size);
-      const step = cell + gap * 0.25;
+      const cell = Math.max(1.2 * ppm, Math.min(size, g.fw * 0.72));
+      const step = Math.max(cell, cell + gap * 0.25);
+      const cx = g.x + g.w / 2;
+      const cy = g.y + g.h / 2;
+      const startX = cx - Math.ceil(g.w / step / 2) * step;
+      const startY = cy - Math.ceil(g.h / step / 2) * step;
       let row = 0;
-      for (let y = g.y; y < g.y + g.h; y += step, row++) {
+      for (let y = startY; y < g.y + g.h; y += step, row++) {
         let col = 0;
-        for (let x = g.x; x < g.x + g.w; x += step, col++) {
+        for (let x = startX; x < g.x + g.w; x += step, col++) {
           context.fillStyle = (row + col) % 2 ? p1 : p2;
           context.fillRect(x, y, cell, cell);
         }
       }
     } else if (frame.pattern === 'diamonds') {
-      const step = Math.max(size + gap, size * 1.4);
-      let i = 0;
-      for (let y = g.y + step / 2; y < g.y + g.h; y += step) {
-        for (let x = g.x + step / 2; x < g.x + g.w; x += step) {
-          context.save();
-          context.translate(x, y);
-          context.rotate(Math.PI / 4);
-          context.fillStyle = i++ % 2 ? p1 : p2;
-          context.fillRect(-size * 0.32, -size * 0.32, size * 0.64, size * 0.64);
-          context.restore();
-        }
-      }
+      drawRegularEdgeSymbols(context, g, ppm, frame, function(x, y, s, i) {
+        drawDiamond(context, x, y, s, i % 2 ? p2 : p1, 0);
+      });
     } else if (frame.pattern === 'waves' || frame.pattern === 'zigzag') {
-      const stepY = Math.max(size + gap, 2.5 * ppm);
-      const amp = Math.max(0.5 * ppm, size * 0.3);
-      const waveLen = Math.max(3 * ppm, (size + gap) * 1.6);
+      const safeSize = Math.min(size, g.fw * 0.72);
+      const stepY = Math.max(safeSize + gap, 2.5 * ppm);
+      const amp = Math.max(0.45 * ppm, Math.min(safeSize * 0.3, g.fw * 0.28));
+      const waveLen = Math.max(3 * ppm, (safeSize + gap) * 1.6);
       context.strokeStyle = p1;
-      context.lineWidth = Math.max(0.55 * ppm, size * 0.18);
-      let row = 0;
-      for (let y = g.y + stepY / 2; y < g.y + g.h; y += stepY, row++) {
+      context.lineWidth = Math.max(0.55 * ppm, Math.min(safeSize * 0.18, g.fw * 0.28));
+      const ys = linePositions(g.y + g.fw * 0.5, g.y + g.h - g.fw * 0.5, stepY);
+      ys.forEach(function(y, row) {
         context.beginPath();
         context.moveTo(g.x, y);
         if (frame.pattern === 'zigzag') {
@@ -461,7 +492,7 @@
         }
         context.strokeStyle = row % 2 ? p2 : p1;
         context.stroke();
-      }
+      });
     } else if (frame.pattern === 'confetti' || frame.pattern === 'sprinkles') {
       const areaMm = (g.w / ppm) * (g.h / ppm);
       const baseCount = Math.max(18, Math.round(areaMm / Math.max(4, Math.pow(frame.patternSize + frame.patternGap, 2)) * 1.8));
@@ -743,7 +774,16 @@
         c.strokeStyle = '#ff5c7b';
         c.lineWidth = Math.max(1.3, 0.4 * ppm);
         c.setLineDash([1.2 * ppm, 1.2 * ppm]);
-        c.strokeRect(r.photoX * ppm, r.photoY * ppm, r.photoW * ppm, r.photoH * ppm);
+        c.beginPath();
+        roundedRectPath(
+          c,
+          (r.x - 0.8) * ppm,
+          (r.y - 0.8) * ppm,
+          (r.w + 1.6) * ppm,
+          (r.h + 1.6) * ppm,
+          Math.max(0, (state.slots[i].frame.radius + 0.8) * ppm)
+        );
+        c.stroke();
         c.restore();
       }
     });
@@ -1066,39 +1106,91 @@
     return null;
   }
 
-  canvas.addEventListener('pointerdown', function(ev) {
-    const p = pointerToMm(ev);
-    const hit = hitPhoto(p);
-    if (!hit) return;
-    state.activeSlot = hit.i;
+  function hitFrame(p) {
+    const rects = getLayoutRects();
+    for (let i = rects.length - 1; i >= 0; i--) {
+      const r = rects[i];
+      const inOuter = p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+      const inPhoto = p.x >= r.photoX && p.x <= r.photoX + r.photoW && p.y >= r.photoY && p.y <= r.photoY + r.photoH;
+      if (inOuter && !inPhoto) return { i: i, r: r };
+    }
+    return null;
+  }
+
+  function activateSlot(index) {
+    if (index < 0 || index >= state.layout) return;
+    state.activeSlot = index;
     renderSlotTabs();
     syncControls();
-    const slot = state.slots[hit.i];
-    state.drag = {
-      slot: hit.i,
-      startX: p.x,
-      startY: p.y,
-      offsetX: slot.offsetX,
-      offsetY: slot.offsetY
-    };
-    canvas.setPointerCapture(ev.pointerId);
     render();
+  }
+
+  function focusFrameEditor() {
+    const section = el('framePatternSection');
+    if (!section) return;
+    section.classList.remove('frame-focus');
+    void section.offsetWidth;
+    section.classList.add('frame-focus');
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(function() {
+      section.classList.remove('frame-focus');
+    }, 1200);
+  }
+
+  canvas.addEventListener('pointerdown', function(ev) {
+    const p = pointerToMm(ev);
+    const photoHit = hitPhoto(p);
+    if (photoHit) {
+      activateSlot(photoHit.i);
+      const slot = state.slots[photoHit.i];
+      state.drag = {
+        slot: photoHit.i,
+        startX: p.x,
+        startY: p.y,
+        offsetX: slot.offsetX,
+        offsetY: slot.offsetY
+      };
+      canvas.setPointerCapture(ev.pointerId);
+      return;
+    }
+
+    const frameHit = hitFrame(p);
+    if (frameHit) {
+      activateSlot(frameHit.i);
+      focusFrameEditor();
+    }
   });
 
   canvas.addEventListener('pointermove', function(ev) {
-    if (!state.drag) return;
     const p = pointerToMm(ev);
-    const slot = state.slots[state.drag.slot];
-    slot.offsetX = state.drag.offsetX + (p.x - state.drag.startX);
-    slot.offsetY = state.drag.offsetY + (p.y - state.drag.startY);
-    render();
+
+    if (state.drag) {
+      const slot = state.slots[state.drag.slot];
+      slot.offsetX = state.drag.offsetX + (p.x - state.drag.startX);
+      slot.offsetY = state.drag.offsetY + (p.y - state.drag.startY);
+      canvas.style.cursor = 'grabbing';
+      render();
+      return;
+    }
+
+    if (hitPhoto(p)) canvas.style.cursor = 'grab';
+    else if (hitFrame(p)) canvas.style.cursor = 'pointer';
+    else canvas.style.cursor = 'default';
   });
 
-  canvas.addEventListener('pointerup', function() {
+  canvas.addEventListener('pointerup', function(ev) {
     state.drag = null;
+    const p = pointerToMm(ev);
+    if (hitPhoto(p)) canvas.style.cursor = 'grab';
+    else if (hitFrame(p)) canvas.style.cursor = 'pointer';
+    else canvas.style.cursor = 'default';
   });
   canvas.addEventListener('pointercancel', function() {
     state.drag = null;
+    canvas.style.cursor = 'default';
+  });
+  canvas.addEventListener('pointerleave', function() {
+    if (!state.drag) canvas.style.cursor = 'default';
   });
 
   document.querySelectorAll('#layoutButtons button').forEach(function(b) {
