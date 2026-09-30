@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#fff8f3" />
+  <title>maxVFX Photo Frame Print Tool</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">maxVFX Tools</p>
+        <h1>Photo Frame Print Tool</h1>
+        <p class="subtitle">A4 인쇄용 사진 프레임 합성 · 89 × 119 mm 사진 기준</p>
+      </div>
+      <div class="top-actions">
+        <button id="resetBtn" class="btn ghost" type="button">초기화</button>
+        <button id="printBtn" class="btn secondary" type="button">인쇄</button>
+        <button id="exportBtn" class="btn primary" type="button">A4 PNG 저장</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="panel controls-panel">
+        <section class="control-section">
+          <div class="section-title-row">
+            <h2>1. A4 배치</h2>
+            <span class="badge">210 × 297 mm</span>
+          </div>
+          <div class="segmented" id="layoutButtons">
+            <button type="button" data-layout="1" class="active">1장</button>
+            <button type="button" data-layout="2">2장</button>
+            <button type="button" data-layout="4">4장</button>
+          </div>
+          <label class="field-row">
+            <span>용지 방향</span>
+            <select id="orientationSelect">
+              <option value="portrait">세로</option>
+              <option value="landscape">가로</option>
+            </select>
+          </label>
+          <div class="mini-grid two">
+            <label>
+              <span>사진 너비 (mm)</span>
+              <input id="photoWidth" type="number" min="30" max="180" step="1" value="89" />
+            </label>
+            <label>
+              <span>사진 높이 (mm)</span>
+              <input id="photoHeight" type="number" min="30" max="250" step="1" value="119" />
+            </label>
+          </div>
+          <p class="hint">기본값은 요청하신 89 × 119 mm입니다. 프레임은 사진 바깥으로 추가됩니다.</p>
+        </section>
+
+        <section class="control-section">
+          <div class="section-title-row">
+            <h2>2. 사진</h2>
+            <span id="activeSlotBadge" class="badge accent">1번 사진</span>
+          </div>
+          <div id="slotTabs" class="slot-tabs"></div>
+          <label class="upload-box" for="imageInput">
+            <input id="imageInput" type="file" accept="image/*" hidden />
+            <strong>사진 불러오기</strong>
+            <span>클릭하거나 이미지 파일을 선택하세요.</span>
+          </label>
+          <div class="range-row">
+            <label for="zoomRange">확대</label>
+            <input id="zoomRange" type="range" min="1" max="4" step="0.01" value="1" />
+            <output id="zoomValue">1.00×</output>
+          </div>
+          <div class="range-row">
+            <label for="rotateRange">회전</label>
+            <input id="rotateRange" type="range" min="-15" max="15" step="0.5" value="0" />
+            <output id="rotateValue">0°</output>
+          </div>
+          <div class="button-row">
+            <button id="fitBtn" type="button" class="btn small secondary">사진 맞춤</button>
+            <button id="centerBtn" type="button" class="btn small ghost">중앙 정렬</button>
+            <button id="copyPhotoBtn" type="button" class="btn small ghost">다른 칸에 복사</button>
+          </div>
+          <p class="hint">미리보기의 사진 영역을 마우스/터치로 드래그하면 위치를 직접 맞출 수 있습니다.</p>
+        </section>
+
+        <section class="control-section">
+          <h2>3. 프레임 스타일</h2>
+          <div id="presetGrid" class="preset-grid"></div>
+          <label class="field-row">
+            <span>테두리 형태</span>
+            <select id="frameStyle">
+              <option value="solid">단색</option>
+              <option value="double">이중선</option>
+              <option value="dashed">점선</option>
+              <option value="dots">도트</option>
+              <option value="stripes">사선 스트라이프</option>
+              <option value="scallop">물결 / 스캘럽</option>
+              <option value="confetti">컨페티</option>
+              <option value="crayon">크레용</option>
+            </select>
+          </label>
+          <div class="mini-grid two">
+            <label>
+              <span>기본 색상</span>
+              <input id="frameColor" type="color" value="#ffb7c5" />
+            </label>
+            <label>
+              <span>보조 색상</span>
+              <input id="frameColor2" type="color" value="#fff2a8" />
+            </label>
+          </div>
+          <div class="range-row">
+            <label for="frameWidthRange">두께</label>
+            <input id="frameWidthRange" type="range" min="1" max="12" step="0.5" value="5" />
+            <output id="frameWidthValue">5 mm</output>
+          </div>
+          <div class="range-row">
+            <label for="radiusRange">둥근 정도</label>
+            <input id="radiusRange" type="range" min="0" max="12" step="0.5" value="4" />
+            <output id="radiusValue">4 mm</output>
+          </div>
+          <label class="field-row">
+            <span>질감</span>
+            <select id="textureSelect">
+              <option value="none">없음</option>
+              <option value="paper">종이</option>
+              <option value="speckle">점박이</option>
+              <option value="soft">소프트 그레인</option>
+            </select>
+          </label>
+          <div class="range-row">
+            <label for="textureRange">질감 강도</label>
+            <input id="textureRange" type="range" min="0" max="1" step="0.05" value="0.25" />
+            <output id="textureValue">25%</output>
+          </div>
+        </section>
+
+        <section class="control-section">
+          <h2>4. 오리기 가이드</h2>
+          <label class="field-row">
+            <span>가이드 종류</span>
+            <select id="guideStyle">
+              <option value="both">점선 + 재단 표시</option>
+              <option value="dash">점선</option>
+              <option value="crop">재단 표시</option>
+              <option value="solid">실선</option>
+              <option value="none">없음</option>
+            </select>
+          </label>
+          <div class="mini-grid two">
+            <label>
+              <span>가이드 색</span>
+              <input id="guideColor" type="color" value="#8a8a8a" />
+            </label>
+            <label>
+              <span>간격 (mm)</span>
+              <input id="guideOffset" type="number" min="0" max="10" step="0.5" value="2" />
+            </label>
+          </div>
+          <label class="toggle-row">
+            <span>
+              <strong>안전영역 표시</strong>
+              <small>사진 안쪽 3 mm 영역 표시</small>
+            </span>
+            <input id="safeAreaToggle" type="checkbox" />
+          </label>
+        </section>
+
+        <section class="control-section compact">
+          <h2>출력 정보</h2>
+          <div class="info-list">
+            <div><span>PNG</span><strong>300 DPI</strong></div>
+            <div><span>A4 세로</span><strong>2480 × 3508 px</strong></div>
+            <div><span>A4 가로</span><strong>3508 × 2480 px</strong></div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="preview-area">
+        <div class="preview-toolbar">
+          <div>
+            <strong>A4 미리보기</strong>
+            <span id="statusText">1장 배치 · 89 × 119 mm</span>
+          </div>
+          <div class="zoom-note">출력 크기는 mm 기준으로 고정됩니다.</div>
+        </div>
+        <div class="paper-stage" id="paperStage">
+          <canvas id="previewCanvas" aria-label="A4 인쇄 미리보기"></canvas>
+        </div>
+        <div class="tip-card">
+          <strong>인쇄 팁</strong>
+          <span>브라우저 인쇄 시 배율을 <b>100%</b> 또는 <b>실제 크기</b>로 선택하고, 여백은 없음/최소로 설정하세요.</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
