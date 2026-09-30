@@ -32,6 +32,8 @@
 - cornerInset을 계산해 네 모서리에는 안전영역 확보
 - linePositions()로 각 변별 패턴 개수를 계산하고 실제 간격을 균등 재분배
 - 요청 Pattern Size가 프레임 폭보다 크면 band 기준으로 자동 제한
+- syncFrameControls에서 장식형 패턴의 Size Range max를 현재 frame.width 기준으로 갱신
+- frame width / pattern type 변경 시 normalizePatternSize()를 호출해 UI값과 실제 렌더 크기를 일치
 
 다이아몬드는 기존 전체 타일 렌더를 제거하고 drawRegularEdgeSymbols + drawDiamond 방식으로 변경했다.
 
