@@ -344,44 +344,130 @@
     context.restore();
   }
 
+  function roundedPerimeterMetrics(g, ppm, frame) {
+    const band = frame.width * ppm;
+    const cx = g.x + band * 0.5;
+    const cy = g.y + band * 0.5;
+    const w = Math.max(1, g.w - band);
+    const h = Math.max(1, g.h - band);
+    const radius = Math.max(
+      0,
+      Math.min(
+        frame.radius * ppm - band * 0.5,
+        w * 0.5,
+        h * 0.5
+      )
+    );
+    const straightW = Math.max(0, w - radius * 2);
+    const straightH = Math.max(0, h - radius * 2);
+    const arc = Math.PI * radius * 0.5;
+    const perimeter = straightW * 2 + straightH * 2 + arc * 4;
+
+    return {
+      left: cx,
+      top: cy,
+      right: cx + w,
+      bottom: cy + h,
+      w: w,
+      h: h,
+      radius: radius,
+      straightW: straightW,
+      straightH: straightH,
+      arc: arc,
+      perimeter: perimeter
+    };
+  }
+
+  function pointOnRoundedPerimeter(m, distance) {
+    const total = Math.max(0.0001, m.perimeter);
+    let d = ((distance % total) + total) % total;
+    const r = m.radius;
+    const sw = m.straightW;
+    const sh = m.straightH;
+    const arc = m.arc;
+
+    if (d < sw) {
+      return { x: m.left + r + d, y: m.top, angle: 0 };
+    }
+    d -= sw;
+
+    if (arc > 0 && d < arc) {
+      const a = -Math.PI * 0.5 + d / r;
+      return {
+        x: m.right - r + Math.cos(a) * r,
+        y: m.top + r + Math.sin(a) * r,
+        angle: a + Math.PI * 0.5
+      };
+    }
+    d -= arc;
+
+    if (d < sh) {
+      return { x: m.right, y: m.top + r + d, angle: Math.PI * 0.5 };
+    }
+    d -= sh;
+
+    if (arc > 0 && d < arc) {
+      const a = d / r;
+      return {
+        x: m.right - r + Math.cos(a) * r,
+        y: m.bottom - r + Math.sin(a) * r,
+        angle: a + Math.PI * 0.5
+      };
+    }
+    d -= arc;
+
+    if (d < sw) {
+      return { x: m.right - r - d, y: m.bottom, angle: Math.PI };
+    }
+    d -= sw;
+
+    if (arc > 0 && d < arc) {
+      const a = Math.PI * 0.5 + d / r;
+      return {
+        x: m.left + r + Math.cos(a) * r,
+        y: m.bottom - r + Math.sin(a) * r,
+        angle: a + Math.PI * 0.5
+      };
+    }
+    d -= arc;
+
+    if (d < sh) {
+      return { x: m.left, y: m.bottom - r - d, angle: -Math.PI * 0.5 };
+    }
+    d -= sh;
+
+    if (arc > 0) {
+      const a = Math.PI + d / r;
+      return {
+        x: m.left + r + Math.cos(a) * r,
+        y: m.top + r + Math.sin(a) * r,
+        angle: a + Math.PI * 0.5
+      };
+    }
+
+    return { x: m.left + r, y: m.top, angle: 0 };
+  }
+
   function drawRegularEdgeSymbols(context, g, ppm, frame, symbol) {
     const band = frame.width * ppm;
     const requested = Math.max(0.6, frame.patternSize) * ppm;
     const size = Math.min(requested, band * 0.68);
-    const gap = Math.max(1, frame.patternGap) * ppm;
-    const desiredStep = Math.max(size + gap, size * 1.35);
+    const gap = Math.max(0, frame.patternGap) * ppm;
+    const desiredStep = Math.max(size + gap, size * 1.08);
 
-    // Keep all symbols on the center line of the frame band.
-    const topY = g.y + band * 0.5;
-    const bottomY = g.y + g.h - band * 0.5;
-    const leftX = g.x + band * 0.5;
-    const rightX = g.x + g.w - band * 0.5;
+    const metrics = roundedPerimeterMetrics(g, ppm, frame);
+    if (metrics.perimeter <= 0) return;
 
-    // Corners are intentionally left empty. This avoids half-clipped symbols and
-    // makes opposite sides use the same visible rhythm.
-    const cornerInset = Math.max(
-      frame.radius * ppm + size * 0.25,
-      band * 0.72,
-      size * 0.85
-    );
+    // One continuous loop: count is decided from the complete rounded perimeter,
+    // then the remaining length is redistributed evenly across every symbol.
+    const count = Math.max(4, Math.floor(metrics.perimeter / desiredStep));
+    const actualStep = metrics.perimeter / count;
+    const phase = actualStep * 0.5;
 
-    const xStart = g.x + cornerInset;
-    const xEnd = g.x + g.w - cornerInset;
-    const yStart = g.y + cornerInset;
-    const yEnd = g.y + g.h - cornerInset;
-
-    const xs = linePositions(xStart, xEnd, desiredStep);
-    const ys = linePositions(yStart, yEnd, desiredStep);
-
-    let index = 0;
-    xs.forEach(function(px, idx) {
-      symbol(px, topY, size, index++, 'top', idx, xs.length);
-      symbol(px, bottomY, size, index++, 'bottom', idx, xs.length);
-    });
-    ys.forEach(function(py, idx) {
-      symbol(leftX, py, size, index++, 'left', idx, ys.length);
-      symbol(rightX, py, size, index++, 'right', idx, ys.length);
-    });
+    for (let i = 0; i < count; i++) {
+      const p = pointOnRoundedPerimeter(metrics, phase + i * actualStep);
+      symbol(p.x, p.y, size, i, p.angle, actualStep);
+    }
   }
 
   function drawPattern(context, g, ppm, frame) {
