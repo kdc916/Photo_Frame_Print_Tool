@@ -536,7 +536,7 @@
     const p1 = frame.patternColor1;
     const p2 = frame.patternColor2;
     const size = Math.max(0.6, frame.patternSize) * ppm;
-    const gap = Math.max(1, frame.patternGap) * ppm;
+    const gap = Math.max(0.2, frame.patternGap) * ppm;
     const random = Math.max(0, Math.min(1, frame.patternRandom));
     const seed = Number(frame.patternSeed || 1);
 
