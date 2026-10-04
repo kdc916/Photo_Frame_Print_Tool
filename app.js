@@ -8,7 +8,7 @@
     portrait: { w: 210, h: 297 },
     landscape: { w: 297, h: 210 }
   };
-  const SLOT_COUNT = 3;
+  const SLOT_COUNT = 4;
   const DEFAULT_LAYOUT_GAP_MM = 8;
   const DEFAULT_PAGE_MARGIN_MM = 8;
   const THREE_UP_MIN_GAP_MM = 2;
@@ -59,6 +59,7 @@
       imageName: '',
       zoom: 1,
       rotation: 0,
+      quarterTurn: 0,
       offsetX: 0,
       offsetY: 0,
       flipX: false,
@@ -91,7 +92,7 @@
       offset: 2,
       safeArea: false
     },
-    slots: [createSlot(0), createSlot(1), createSlot(2)],
+    slots: [createSlot(0), createSlot(1), createSlot(2), createSlot(3)],
     drag: null
   };
 
@@ -120,12 +121,12 @@
   }
 
   function getLayoutMargin() {
-    if (state.layout === 3) return Math.max(THREE_UP_MIN_MARGIN_MM, getGuideReserve() + 1);
+    if (state.layout === 3 || state.layout === 4) return Math.max(THREE_UP_MIN_MARGIN_MM, getGuideReserve() + 1);
     return DEFAULT_PAGE_MARGIN_MM;
   }
 
   function getLayoutGap() {
-    if (state.layout === 3) return Math.max(THREE_UP_MIN_GAP_MM, getGuideReserve() * 2 + 1);
+    if (state.layout === 3 || state.layout === 4) return Math.max(THREE_UP_MIN_GAP_MM, getGuideReserve() * 2 + 1);
     return DEFAULT_LAYOUT_GAP_MM;
   }
 
@@ -162,9 +163,19 @@
       return Math.max(0.05, Math.min(1, usableW / maxW, (usableH - gap) / sumH));
     }
 
-    const sumW = outers.reduce(function(total, o) { return total + o.w; }, 0);
-    const maxH = Math.max.apply(null, outers.map(function(o) { return o.h; }));
-    return Math.max(0.05, Math.min(1, (usableW - gap * 2) / sumW, usableH / maxH));
+    if (state.layout === 3) {
+      const sumW = outers.reduce(function(total, o) { return total + o.w; }, 0);
+      const maxH = Math.max.apply(null, outers.map(function(o) { return o.h; }));
+      return Math.max(0.05, Math.min(1, (usableW - gap * 2) / sumW, usableH / maxH));
+    }
+
+    const colW0 = Math.max(outers[0].w, outers[2].w);
+    const colW1 = Math.max(outers[1].w, outers[3].w);
+    const rowH0 = Math.max(outers[0].h, outers[1].h);
+    const rowH1 = Math.max(outers[2].h, outers[3].h);
+    const totalW = colW0 + colW1 + gap;
+    const totalH = rowH0 + rowH1 + gap;
+    return Math.max(0.05, Math.min(1, usableW / totalW, usableH / totalH));
   }
 
   function getLayoutScale() {
@@ -229,20 +240,54 @@
       ];
     }
 
-    const totalW = outers.reduce(function(total, o) { return total + o.w; }, 0) + gap * (state.layout - 1);
-    const startX = margin + (usableW - totalW) / 2;
-    const centerY = margin + usableH / 2;
-    const rects = [];
-    let x = startX;
-    for (let i = 0; i < state.layout; i++) {
-      rects.push(buildRect(i, x, centerY - outers[i].h / 2, scale));
-      x += outers[i].w + gap;
+    if (state.layout === 3) {
+      const totalW = outers.reduce(function(total, o) { return total + o.w; }, 0) + gap * 2;
+      const startX = margin + (usableW - totalW) / 2;
+      const centerY = margin + usableH / 2;
+      const rects = [];
+      let x = startX;
+      for (let i = 0; i < 3; i++) {
+        rects.push(buildRect(i, x, centerY - outers[i].h / 2, scale));
+        x += outers[i].w + gap;
+      }
+      return rects;
     }
-    return rects;
+
+    const colW0 = Math.max(outers[0].w, outers[2].w);
+    const colW1 = Math.max(outers[1].w, outers[3].w);
+    const rowH0 = Math.max(outers[0].h, outers[1].h);
+    const rowH1 = Math.max(outers[2].h, outers[3].h);
+    const totalW = colW0 + colW1 + gap;
+    const totalH = rowH0 + rowH1 + gap;
+    const startX = margin + (usableW - totalW) / 2;
+    const startY = margin + (usableH - totalH) / 2;
+
+    return [
+      buildRect(0, startX + (colW0 - outers[0].w) / 2, startY + (rowH0 - outers[0].h) / 2, scale),
+      buildRect(1, startX + colW0 + gap + (colW1 - outers[1].w) / 2, startY + (rowH0 - outers[1].h) / 2, scale),
+      buildRect(2, startX + (colW0 - outers[2].w) / 2, startY + rowH0 + gap + (rowH1 - outers[2].h) / 2, scale),
+      buildRect(3, startX + colW0 + gap + (colW1 - outers[3].w) / 2, startY + rowH0 + gap + (rowH1 - outers[3].h) / 2, scale)
+    ];
   }
 
-  function fitScale(img, targetW, targetH) {
-    return Math.max(targetW / img.naturalWidth, targetH / img.naturalHeight);
+  function normalizeQuarterTurn(value) {
+    const n = ((Number(value) || 0) % 360 + 360) % 360;
+    if (n < 45 || n >= 315) return 0;
+    if (n < 135) return 90;
+    if (n < 225) return 180;
+    return 270;
+  }
+
+  function getTotalPhotoRotation(slot) {
+    return normalizeQuarterTurn(slot.quarterTurn) + Number(slot.rotation || 0);
+  }
+
+  function fitScale(img, targetW, targetH, quarterTurn) {
+    const q = normalizeQuarterTurn(quarterTurn);
+    const rotated90 = q === 90 || q === 270;
+    const sourceW = rotated90 ? img.naturalHeight : img.naturalWidth;
+    const sourceH = rotated90 ? img.naturalWidth : img.naturalHeight;
+    return Math.max(targetW / sourceW, targetH / sourceH);
   }
 
   function getRenderFrame(frame, scale) {
@@ -287,7 +332,7 @@
     }
 
     const img = slot.image;
-    const base = fitScale(img, w, h);
+    const base = fitScale(img, w, h, slot.quarterTurn);
     const scale = base * slot.zoom;
     const dw = img.naturalWidth * scale;
     const dh = img.naturalHeight * scale;
@@ -295,7 +340,7 @@
     const cy = y + h / 2 + slot.offsetY * layoutScale * ppm;
 
     context.translate(cx, cy);
-    context.rotate(slot.rotation * Math.PI / 180);
+    context.rotate(getTotalPhotoRotation(slot) * Math.PI / 180);
     context.scale(slot.flipX ? -1 : 1, 1);
     context.drawImage(img, -dw / 2, -dh / 2, dw, dh);
     context.restore();
@@ -1003,6 +1048,7 @@
     el('zoomValue').textContent = Number(slot.zoom).toFixed(2) + '×';
     el('rotateRange').value = slot.rotation;
     el('rotateValue').textContent = Number(slot.rotation).toFixed(1).replace('.0', '') + '°';
+    el('quarterTurnValue').textContent = '90° 회전: ' + normalizeQuarterTurn(slot.quarterTurn) + '°';
     el('flipXBtn').classList.toggle('is-active', !!slot.flipX);
     el('flipXBtn').textContent = slot.flipX ? '좌우 반전 ✓' : '좌우 반전';
   }
@@ -1211,6 +1257,7 @@
       slot.imageName = file.name;
       slot.zoom = 1;
       slot.rotation = 0;
+      slot.quarterTurn = 0;
       slot.offsetX = 0;
       slot.offsetY = 0;
       renderSlotTabs();
@@ -1243,10 +1290,14 @@
   }
 
   function setLayout(layout) {
-    state.layout = Math.max(1, Math.min(3, Number(layout) || 1));
+    state.layout = Math.max(1, Math.min(4, Number(layout) || 1));
     if (state.layout === 3) {
       state.orientation = 'landscape';
       el('orientationSelect').value = 'landscape';
+      el('orientationSelect').disabled = true;
+    } else if (state.layout === 4) {
+      state.orientation = 'portrait';
+      el('orientationSelect').value = 'portrait';
       el('orientationSelect').disabled = true;
     } else {
       el('orientationSelect').disabled = false;
@@ -1274,7 +1325,7 @@
     state.layoutScale = 1;
     state.activeSlot = 0;
     state.guide = { style: 'both', color: '#8a8a8a', offset: 2, safeArea: false };
-    state.slots = [createSlot(0), createSlot(1), createSlot(2)];
+    state.slots = [createSlot(0), createSlot(1), createSlot(2), createSlot(3)];
 
     el('orientationSelect').value = 'portrait';
     el('photoWidth').value = 89;
@@ -1436,10 +1487,24 @@
     el('rotateValue').textContent = s.rotation.toFixed(1).replace('.0', '') + '°';
     render();
   });
+  el('rotate90LeftBtn').addEventListener('click', function() {
+    const s = state.slots[state.activeSlot];
+    s.quarterTurn = normalizeQuarterTurn((s.quarterTurn || 0) - 90);
+    syncPhotoControls();
+    render();
+  });
+  el('rotate90RightBtn').addEventListener('click', function() {
+    const s = state.slots[state.activeSlot];
+    s.quarterTurn = normalizeQuarterTurn((s.quarterTurn || 0) + 90);
+    syncPhotoControls();
+    render();
+  });
+
   el('fitBtn').addEventListener('click', function() {
     const s = state.slots[state.activeSlot];
     s.zoom = 1;
     s.rotation = 0;
+    s.quarterTurn = 0;
     s.offsetX = 0;
     s.offsetY = 0;
     syncPhotoControls();
@@ -1470,6 +1535,7 @@
       dst.imageName = src.imageName;
       dst.zoom = src.zoom;
       dst.rotation = src.rotation;
+      dst.quarterTurn = src.quarterTurn;
       dst.offsetX = src.offsetX;
       dst.offsetY = src.offsetY;
       dst.flipX = src.flipX;
