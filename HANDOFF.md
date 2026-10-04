@@ -2,7 +2,7 @@
 
 ## 최신 안정 기준
 
-- 버전: **v0.4.0 Three-Up & Global A4 Fit Scale**
+- 버전: **v0.4.2 Four-Up + 90° Photo Rotation**
 - 기준일: 2026-10-04
 - 저장소: kdc916/Photo_Frame_Print_Tool
 - 배포: GitHub Pages / main root
@@ -12,7 +12,7 @@
 - 기준 사진: 89 × 119 mm
 - A4 Portrait: 210 × 297 mm / 2480 × 3508 px @ 300 DPI
 - A4 Landscape: 297 × 210 mm / 3508 × 2480 px @ 300 DPI
-- A4 최대 3장
+- A4 최대 4장
 - 3장 선택 시 Landscape 자동 전환 및 Orientation UI 잠금
 - slot.frame 독립 구조
 - Photo → Bleed → Frame Overlay → Text 렌더 순서
@@ -155,3 +155,24 @@ OFF 시:
 ## 새 채팅 시작용 프롬프트
 
 maxVFX Photo Frame Print Tool v0.4.0을 이어서 개발한다. GitHub kdc916/Photo_Frame_Print_Tool main이 최신 기준이다. 기준 사진은 89×119mm이며 A4 최대 3장이다. 3장 선택 시 Landscape를 강제하고 getMaxFitScale()로 재단 가이드와 슬롯 간격까지 고려한 최대 맞춤 크기를 계산한다. 실제 배율은 getMaxFitScale() × state.layoutScale이며 전체 크기 슬라이더는 사진/프레임/패턴을 함께 축소한다. frame.enabled가 false이면 프레임 렌더와 레이아웃 프레임 두께를 모두 0으로 처리한다. v0.3.2 Continuous Perimeter Pattern 및 Photo Bleed → Frame Overlay 구조를 유지한다. 최종 결과는 GitHub main 반영 + ZIP + 누적 HANDOFF.md로 제공한다.
+
+
+## v0.4.2 추가 변경
+
+- SLOT_COUNT를 4로 확장
+- 4장 선택 시 A4 Portrait 2×2 Grid 사용
+- 4장 Fit Scale은 각 열의 최대 폭과 각 행의 최대 높이를 기준으로 계산
+- slot.quarterTurn 추가: 0 / 90 / 180 / 270
+- 기존 slot.rotation은 -15°~+15° 미세 회전으로 유지
+- 실제 렌더 회전 = quarterTurn + rotation
+- 90°/270° 상태에서는 fitScale()이 naturalWidth / naturalHeight를 교환
+- rotate90LeftBtn / rotate90RightBtn / quarterTurnValue UI 추가
+- 사진 맞춤은 quarterTurn=0으로 복귀
+- 사진 복사 시 quarterTurn 상태 유지
+
+### 회귀 방지
+
+- 4장 레이아웃은 1,2 / 3,4 순서의 2×2 배치 유지
+- 3장은 Landscape 자동 고정
+- 4장은 Portrait 자동 고정
+- 90°/270° 회전에서 프레임 안에 빈 영역이 생기지 않도록 rotated fit 계산 유지
