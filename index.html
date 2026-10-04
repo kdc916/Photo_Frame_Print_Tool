@@ -43,15 +43,24 @@
           </label>
           <div class="mini-grid two">
             <label>
-              <span>사진 너비 (mm)</span>
+              <span>기준 사진 너비 (mm)</span>
               <input id="photoWidth" type="number" min="30" max="180" step="1" value="89" />
             </label>
             <label>
-              <span>사진 높이 (mm)</span>
+              <span>기준 사진 높이 (mm)</span>
               <input id="photoHeight" type="number" min="30" max="250" step="1" value="119" />
             </label>
           </div>
-          <p class="hint">A4 한 장에는 최대 3장까지 배치합니다. 3장 선택 시 용지는 자동으로 가로 전환됩니다. 기본 89 × 119 mm + 프레임 5 mm는 3장이 A4 가로 297 mm에 정확히 맞습니다.</p>
+          <div class="range-row master-scale-row">
+            <label for="layoutScaleRange">전체 크기</label>
+            <input id="layoutScaleRange" type="range" min="40" max="100" step="1" value="100" />
+            <output id="layoutScaleValue">100%</output>
+          </div>
+          <div class="scale-readout">
+            <strong id="effectiveSizeText">A4 최대 크기 계산 중…</strong>
+            <span>100% = 현재 배치에서 A4에 들어가는 최대 크기</span>
+          </div>
+          <p class="hint">3장 선택 시 용지는 자동으로 가로 전환됩니다. 전체 크기를 줄이면 모든 사진과 프레임·패턴도 같은 비율로 함께 축소됩니다.</p>
         </section>
 
         <section class="control-section">
@@ -331,7 +340,7 @@
               <input id="guideOffset" type="number" min="0" max="10" step="0.5" value="2" />
             </label>
           </div>
-          <p class="hint">3장 배치에서는 프레임/사진 크기를 유지하기 위해 용지를 가로로 전환하고, 공간이 부족하면 재단 가이드 간격을 0 mm로 자동 맞춥니다.</p>
+          <p class="hint">3장 배치는 가로 A4로 고정됩니다. 재단 가이드 간격까지 포함해 A4 최대 크기를 자동 계산하므로 사진/프레임이 겹치지 않습니다.</p>
           <label class="toggle-row">
             <span>
               <strong>안전영역 표시</strong>
