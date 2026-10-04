@@ -27,11 +27,12 @@
         <section class="control-section">
           <div class="section-title-row">
             <h2>1. A4 배치</h2>
-            <span class="badge">최대 2장</span>
+            <span class="badge">최대 3장</span>
           </div>
-          <div class="segmented two-segments" id="layoutButtons">
+          <div class="segmented" id="layoutButtons">
             <button type="button" data-layout="1" class="active">1장</button>
             <button type="button" data-layout="2">2장</button>
+            <button type="button" data-layout="3">3장</button>
           </div>
           <label class="field-row">
             <span>용지 방향</span>
@@ -50,7 +51,7 @@
               <input id="photoHeight" type="number" min="30" max="250" step="1" value="119" />
             </label>
           </div>
-          <p class="hint">A4 한 장에는 최대 2장만 배치합니다. 기본 사진 영역은 89 × 119 mm이며 프레임은 사진 바깥쪽에 추가됩니다.</p>
+          <p class="hint">A4 한 장에는 최대 3장까지 배치합니다. 3장 선택 시 용지는 자동으로 가로 전환됩니다. 기본 89 × 119 mm + 프레임 5 mm는 3장이 A4 가로 297 mm에 정확히 맞습니다.</p>
         </section>
 
         <section class="control-section">
@@ -89,6 +90,14 @@
             <span id="frameSlotBadge" class="badge accent">1번 프레임</span>
           </div>
           <p class="hint direct-select-hint">A4 미리보기에서 원하는 프레임 테두리를 클릭하면 해당 프레임이 선택되고 이 편집 영역으로 바로 이동합니다.</p>
+
+          <label class="toggle-row frame-toggle-row">
+            <span>
+              <strong>프레임 사용</strong>
+              <small>선택한 사진의 프레임과 패턴을 켜거나 끕니다.</small>
+            </span>
+            <input id="frameEnabledToggle" type="checkbox" checked />
+          </label>
 
           <div id="presetGrid" class="preset-grid"></div>
 
@@ -322,6 +331,7 @@
               <input id="guideOffset" type="number" min="0" max="10" step="0.5" value="2" />
             </label>
           </div>
+          <p class="hint">3장 배치에서는 프레임/사진 크기를 유지하기 위해 용지를 가로로 전환하고, 공간이 부족하면 재단 가이드 간격을 0 mm로 자동 맞춥니다.</p>
           <label class="toggle-row">
             <span>
               <strong>안전영역 표시</strong>
