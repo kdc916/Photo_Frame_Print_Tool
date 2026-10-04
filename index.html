@@ -27,12 +27,13 @@
         <section class="control-section">
           <div class="section-title-row">
             <h2>1. A4 배치</h2>
-            <span class="badge">최대 3장</span>
+            <span class="badge">최대 4장</span>
           </div>
           <div class="segmented" id="layoutButtons">
             <button type="button" data-layout="1" class="active">1장</button>
             <button type="button" data-layout="2">2장</button>
             <button type="button" data-layout="3">3장</button>
+            <button type="button" data-layout="4">4장</button>
           </div>
           <label class="field-row">
             <span>용지 방향</span>
@@ -60,7 +61,7 @@
             <strong id="effectiveSizeText">A4 최대 크기 계산 중…</strong>
             <span>100% = 현재 배치에서 A4에 들어가는 최대 크기</span>
           </div>
-          <p class="hint">3장 선택 시 용지는 자동으로 가로 전환됩니다. 전체 크기를 줄이면 모든 사진과 프레임·패턴도 같은 비율로 함께 축소됩니다.</p>
+          <p class="hint">3장 선택 시 용지는 자동으로 가로, 4장 선택 시 자동으로 세로 2×2 배치로 전환됩니다. 전체 크기를 줄이면 모든 사진과 프레임·패턴도 같은 비율로 함께 축소됩니다.</p>
         </section>
 
         <section class="control-section">
@@ -80,9 +81,14 @@
             <output id="zoomValue">1.00×</output>
           </div>
           <div class="range-row">
-            <label for="rotateRange">회전</label>
+            <label for="rotateRange">미세 회전</label>
             <input id="rotateRange" type="range" min="-15" max="15" step="0.5" value="0" />
             <output id="rotateValue">0°</output>
+          </div>
+          <div class="button-row rotation-90-row">
+            <button id="rotate90LeftBtn" type="button" class="btn small ghost">↶ 왼쪽 90°</button>
+            <button id="rotate90RightBtn" type="button" class="btn small ghost">↷ 오른쪽 90°</button>
+            <span id="quarterTurnValue" class="rotation-badge">90° 회전: 0°</span>
           </div>
           <div class="button-row">
             <button id="fitBtn" type="button" class="btn small secondary">사진 맞춤</button>
@@ -340,7 +346,7 @@
               <input id="guideOffset" type="number" min="0" max="10" step="0.5" value="2" />
             </label>
           </div>
-          <p class="hint">3장 배치는 가로 A4로 고정됩니다. 재단 가이드 간격까지 포함해 A4 최대 크기를 자동 계산하므로 사진/프레임이 겹치지 않습니다.</p>
+          <p class="hint">3장 배치는 가로 A4로, 4장 배치는 세로 A4의 2×2로 고정됩니다. 재단 가이드 간격까지 포함해 A4 최대 크기를 자동 계산하므로 사진/프레임이 겹치지 않습니다.</p>
           <label class="toggle-row">
             <span>
               <strong>안전영역 표시</strong>
