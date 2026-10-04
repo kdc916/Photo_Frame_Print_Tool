@@ -8,8 +8,11 @@
     portrait: { w: 210, h: 297 },
     landscape: { w: 297, h: 210 }
   };
-  const SLOT_COUNT = 2;
-  const LAYOUT_GAP_MM = 8;
+  const SLOT_COUNT = 3;
+  const DEFAULT_LAYOUT_GAP_MM = 8;
+  const DEFAULT_PAGE_MARGIN_MM = 8;
+  const THREE_UP_MIN_GAP_MM = 2;
+  const THREE_UP_MIN_MARGIN_MM = 3;
   const PERIMETER_PATTERNS = new Set(['dots', 'diamonds', 'stars', 'hearts', 'flowers']);
 
   const PRESETS = [
@@ -28,6 +31,7 @@
 
   function createDefaultFrame() {
     return {
+      enabled: true,
       style: 'plain',
       backgroundColor: '#ffb7c5',
       lineColor: '#ed7891',
@@ -79,6 +83,7 @@
     layout: 1,
     photoW: 89,
     photoH: 119,
+    layoutScale: 1,
     activeSlot: 0,
     guide: {
       style: 'both',
@@ -86,7 +91,7 @@
       offset: 2,
       safeArea: false
     },
-    slots: [createSlot(0), createSlot(1)],
+    slots: [createSlot(0), createSlot(1), createSlot(2)],
     drag: null
   };
 
@@ -110,15 +115,75 @@
     return A4[state.orientation];
   }
 
-  function getSlotOuter(slot) {
-    const fw = slot.frame.width;
+  function getGuideReserve() {
+    return state.guide.style === 'none' ? 0 : Math.max(0, state.guide.offset);
+  }
+
+  function getLayoutMargin() {
+    if (state.layout === 3) return Math.max(THREE_UP_MIN_MARGIN_MM, getGuideReserve() + 1);
+    return DEFAULT_PAGE_MARGIN_MM;
+  }
+
+  function getLayoutGap() {
+    if (state.layout === 3) return Math.max(THREE_UP_MIN_GAP_MM, getGuideReserve() * 2 + 1);
+    return DEFAULT_LAYOUT_GAP_MM;
+  }
+
+  function getBaseFrameWidth(slot) {
+    return slot.frame.enabled ? slot.frame.width : 0;
+  }
+
+  function getBaseSlotOuter(slot) {
+    const fw = getBaseFrameWidth(slot);
     return { w: state.photoW + fw * 2, h: state.photoH + fw * 2 };
   }
 
-  function buildRect(slotIndex, x, y) {
+  function getMaxFitScale() {
+    const page = getPageSize();
+    const margin = getLayoutMargin();
+    const gap = getLayoutGap();
+    const usableW = Math.max(1, page.w - margin * 2);
+    const usableH = Math.max(1, page.h - margin * 2);
+    const outers = state.slots.slice(0, state.layout).map(getBaseSlotOuter);
+
+    if (state.layout === 1) {
+      const o = outers[0];
+      return Math.max(0.05, Math.min(1, usableW / o.w, usableH / o.h));
+    }
+
+    if (state.layout === 2) {
+      if (state.orientation === 'landscape') {
+        const sumW = outers[0].w + outers[1].w;
+        const maxH = Math.max(outers[0].h, outers[1].h);
+        return Math.max(0.05, Math.min(1, (usableW - gap) / sumW, usableH / maxH));
+      }
+      const maxW = Math.max(outers[0].w, outers[1].w);
+      const sumH = outers[0].h + outers[1].h;
+      return Math.max(0.05, Math.min(1, usableW / maxW, (usableH - gap) / sumH));
+    }
+
+    const sumW = outers.reduce(function(total, o) { return total + o.w; }, 0);
+    const maxH = Math.max.apply(null, outers.map(function(o) { return o.h; }));
+    return Math.max(0.05, Math.min(1, (usableW - gap * 2) / sumW, usableH / maxH));
+  }
+
+  function getLayoutScale() {
+    return getMaxFitScale() * state.layoutScale;
+  }
+
+  function getSlotOuter(slot, scale) {
+    const actualScale = scale == null ? getLayoutScale() : scale;
+    const fw = getBaseFrameWidth(slot) * actualScale;
+    return {
+      w: state.photoW * actualScale + fw * 2,
+      h: state.photoH * actualScale + fw * 2
+    };
+  }
+
+  function buildRect(slotIndex, x, y, scale) {
     const slot = state.slots[slotIndex];
-    const fw = slot.frame.width;
-    const outer = getSlotOuter(slot);
+    const fw = getBaseFrameWidth(slot) * scale;
+    const outer = getSlotOuter(slot, scale);
     return {
       slotIndex: slotIndex,
       x: x,
@@ -127,82 +192,77 @@
       h: outer.h,
       photoX: x + fw,
       photoY: y + fw,
-      photoW: state.photoW,
-      photoH: state.photoH
+      photoW: state.photoW * scale,
+      photoH: state.photoH * scale
     };
-  }
-
-  function layoutOverflowMetric(totalW, totalH, usableW, usableH) {
-    return Math.max(0, totalW - usableW) + Math.max(0, totalH - usableH);
   }
 
   function getLayoutRects() {
     const page = getPageSize();
-    const margin = 8;
+    const margin = getLayoutMargin();
+    const gap = getLayoutGap();
     const usableW = page.w - margin * 2;
     const usableH = page.h - margin * 2;
+    const scale = getLayoutScale();
+    const outers = state.slots.slice(0, state.layout).map(function(slot) {
+      return getSlotOuter(slot, scale);
+    });
 
     if (state.layout === 1) {
-      const outer = getSlotOuter(state.slots[0]);
-      return [buildRect(0, margin + (usableW - outer.w) / 2, margin + (usableH - outer.h) / 2)];
-    }
-
-    const a = getSlotOuter(state.slots[0]);
-    const b = getSlotOuter(state.slots[1]);
-
-    const horizontal = {
-      totalW: a.w + b.w + LAYOUT_GAP_MM,
-      totalH: Math.max(a.h, b.h)
-    };
-    const vertical = {
-      totalW: Math.max(a.w, b.w),
-      totalH: a.h + b.h + LAYOUT_GAP_MM
-    };
-
-    const horizontalFits = horizontal.totalW <= usableW && horizontal.totalH <= usableH;
-    const verticalFits = vertical.totalW <= usableW && vertical.totalH <= usableH;
-
-    let mode;
-    if (state.orientation === 'landscape' && horizontalFits) mode = 'horizontal';
-    else if (state.orientation === 'portrait' && verticalFits) mode = 'vertical';
-    else if (horizontalFits) mode = 'horizontal';
-    else if (verticalFits) mode = 'vertical';
-    else {
-      const hm = layoutOverflowMetric(horizontal.totalW, horizontal.totalH, usableW, usableH);
-      const vm = layoutOverflowMetric(vertical.totalW, vertical.totalH, usableW, usableH);
-      mode = hm <= vm ? 'horizontal' : 'vertical';
-    }
-
-    if (mode === 'horizontal') {
-      const startX = margin + (usableW - horizontal.totalW) / 2;
-      const centerY = margin + usableH / 2;
       return [
-        buildRect(0, startX, centerY - a.h / 2),
-        buildRect(1, startX + a.w + LAYOUT_GAP_MM, centerY - b.h / 2)
+        buildRect(
+          0,
+          margin + (usableW - outers[0].w) / 2,
+          margin + (usableH - outers[0].h) / 2,
+          scale
+        )
       ];
     }
 
-    const startY = margin + (usableH - vertical.totalH) / 2;
-    const centerX = margin + usableW / 2;
-    return [
-      buildRect(0, centerX - a.w / 2, startY),
-      buildRect(1, centerX - b.w / 2, startY + a.h + LAYOUT_GAP_MM)
-    ];
+    if (state.layout === 2 && state.orientation === 'portrait') {
+      const totalH = outers[0].h + outers[1].h + gap;
+      const startY = margin + (usableH - totalH) / 2;
+      const centerX = margin + usableW / 2;
+      return [
+        buildRect(0, centerX - outers[0].w / 2, startY, scale),
+        buildRect(1, centerX - outers[1].w / 2, startY + outers[0].h + gap, scale)
+      ];
+    }
+
+    const totalW = outers.reduce(function(total, o) { return total + o.w; }, 0) + gap * (state.layout - 1);
+    const startX = margin + (usableW - totalW) / 2;
+    const centerY = margin + usableH / 2;
+    const rects = [];
+    let x = startX;
+    for (let i = 0; i < state.layout; i++) {
+      rects.push(buildRect(i, x, centerY - outers[i].h / 2, scale));
+      x += outers[i].w + gap;
+    }
+    return rects;
   }
 
   function fitScale(img, targetW, targetH) {
     return Math.max(targetW / img.naturalWidth, targetH / img.naturalHeight);
   }
 
-  function drawPhoto(context, slot, r, ppm) {
-    const frame = slot.frame;
+  function getRenderFrame(frame, scale) {
+    return Object.assign({}, frame, {
+      width: frame.enabled ? frame.width * scale : 0,
+      radius: frame.radius * scale,
+      patternSize: frame.patternSize * scale,
+      patternGap: frame.patternGap * scale
+    });
+  }
+
+  function drawPhoto(context, slot, r, ppm, layoutScale) {
+    const frame = getRenderFrame(slot.frame, layoutScale);
     const x = r.photoX * ppm;
     const y = r.photoY * ppm;
     const w = r.photoW * ppm;
     const h = r.photoH * ppm;
-    const bleedMm = Math.min(0.45, Math.max(0.18, frame.width * 0.08));
+    const bleedMm = frame.enabled ? Math.min(0.45 * layoutScale, Math.max(0.18 * layoutScale, frame.width * 0.08)) : 0;
     const bleed = bleedMm * ppm;
-    const innerRadiusMm = Math.max(0, frame.radius - frame.width * 0.65);
+    const innerRadiusMm = frame.enabled ? Math.max(0, frame.radius - frame.width * 0.65) : 0;
 
     context.save();
     context.beginPath();
@@ -221,7 +281,7 @@
       context.fillText('사진을 넣어주세요', x + w / 2, y + h / 2 - 7 * ppm);
       context.font = Math.max(9, 2.5 * ppm) + 'px system-ui, sans-serif';
       context.fillStyle = '#bbb3ad';
-      context.fillText(state.photoW + ' × ' + state.photoH + ' mm', x + w / 2, y + h / 2 + 2 * ppm);
+      context.fillText((state.photoW * layoutScale).toFixed(1) + ' × ' + (state.photoH * layoutScale).toFixed(1) + ' mm', x + w / 2, y + h / 2 + 2 * ppm);
       context.restore();
       return;
     }
@@ -231,8 +291,8 @@
     const scale = base * slot.zoom;
     const dw = img.naturalWidth * scale;
     const dh = img.naturalHeight * scale;
-    const cx = x + w / 2 + slot.offsetX * ppm;
-    const cy = y + h / 2 + slot.offsetY * ppm;
+    const cx = x + w / 2 + slot.offsetX * layoutScale * ppm;
+    const cy = y + h / 2 + slot.offsetY * layoutScale * ppm;
 
     context.translate(cx, cy);
     context.rotate(slot.rotation * Math.PI / 180);
@@ -650,8 +710,9 @@
     context.restore();
   }
 
-  function drawFrame(context, slot, r, ppm) {
-    const frame = slot.frame;
+  function drawFrame(context, slot, r, ppm, layoutScale) {
+    if (!slot.frame.enabled) return;
+    const frame = getRenderFrame(slot.frame, layoutScale);
 
     clipFrameRing(context, r, ppm, frame, function(g) {
       context.fillStyle = frame.backgroundColor;
@@ -741,30 +802,30 @@
     context.fillText(text, cx, cy);
   }
 
-  function drawTextLayer(context, slot, r, ppm) {
+  function drawTextLayer(context, slot, r, ppm, layoutScale) {
     const primary = (slot.nameText || '').trim();
     const secondary = (slot.secondaryText || '').trim();
     if (!primary && !secondary) return;
 
-    const frame = slot.frame;
+    const frame = getRenderFrame(slot.frame, layoutScale);
     const x = r.photoX * ppm;
     const y = r.photoY * ppm;
     const w = r.photoW * ppm;
     const h = r.photoH * ppm;
     const innerRadius = Math.max(0, frame.radius - frame.width * 0.65) * ppm;
-    const baseSize = Math.max(3, slot.textSize) * ppm;
+    const baseSize = Math.max(3 * layoutScale, slot.textSize * layoutScale) * ppm;
     const secondSize = primary ? Math.max(2.6 * ppm, baseSize * 0.48) : Math.max(2.8 * ppm, baseSize * 0.68);
     const gap = secondary && primary ? 1.2 * ppm : 0;
     const groupH = (primary ? baseSize : 0) + gap + (secondary ? secondSize : 0);
-    const pad = 4 * ppm;
+    const pad = 4 * layoutScale * ppm;
 
     let top;
     if (slot.textPosition === 'top') top = y + pad;
     else if (slot.textPosition === 'center') top = y + (h - groupH) / 2;
     else top = y + h - groupH - pad;
 
-    const cx = x + w / 2 + slot.textOffsetX * ppm;
-    top += slot.textOffsetY * ppm;
+    const cx = x + w / 2 + slot.textOffsetX * layoutScale * ppm;
+    top += slot.textOffsetY * layoutScale * ppm;
 
     context.save();
     context.beginPath();
@@ -848,11 +909,12 @@
     c.fillRect(0, 0, target.width, target.height);
 
     const rects = getLayoutRects();
+    const layoutScale = getLayoutScale();
     rects.forEach(function(r, i) {
       const slot = state.slots[i];
-      drawPhoto(c, slot, r, ppm);
-      drawFrame(c, slot, r, ppm);
-      drawTextLayer(c, slot, r, ppm);
+      drawPhoto(c, slot, r, ppm, layoutScale);
+      drawFrame(c, slot, r, ppm, layoutScale);
+      drawTextLayer(c, slot, r, ppm, layoutScale);
       drawSafeArea(c, r, ppm);
       drawGuide(c, r, ppm);
 
@@ -868,7 +930,7 @@
           (r.y - 0.8) * ppm,
           (r.w + 1.6) * ppm,
           (r.h + 1.6) * ppm,
-          Math.max(0, (state.slots[i].frame.radius + 0.8) * ppm)
+          Math.max(0, (state.slots[i].frame.radius * layoutScale + 0.8) * ppm)
         );
         c.stroke();
         c.restore();
@@ -885,6 +947,8 @@
     const page = getPageSize();
     const guidePad = state.guide.style === 'none' ? 0 : state.guide.offset;
     const rects = getLayoutRects();
+    const layoutScale = getLayoutScale();
+    const fitScale = getMaxFitScale();
     const overflow = rects.some(function(r) {
       return r.x - guidePad < 0 ||
         r.y - guidePad < 0 ||
@@ -892,15 +956,25 @@
         r.y + r.h + guidePad > page.h;
     });
 
-    const widths = rects.map(function(r, i) {
-      return state.slots[i].frame.width;
+    const frameWidths = rects.map(function(r, i) {
+      const frame = state.slots[i].frame;
+      return frame.enabled ? (frame.width * layoutScale).toFixed(1).replace('.0', '') : 'OFF';
     }).join(' / ');
 
+    const effectiveW = state.photoW * layoutScale;
+    const effectiveH = state.photoH * layoutScale;
+    const userPercent = Math.round(state.layoutScale * 100);
+    const fitPercent = Math.round(fitScale * 100);
+
     const status = el('statusText');
-    status.textContent = state.layout + '장 배치 · ' + state.photoW + ' × ' + state.photoH + ' mm · 프레임 ' + widths + ' mm' + (overflow ? ' · ⚠ A4 영역 초과' : '');
+    status.textContent = state.layout + '장 배치 · 사진 ' + effectiveW.toFixed(1) + ' × ' + effectiveH.toFixed(1) + ' mm · 프레임 ' + frameWidths + ' mm' + (overflow ? ' · ⚠ A4 영역 초과' : '');
     status.style.color = overflow ? '#cf425f' : '';
     el('activeSlotBadge').textContent = (state.activeSlot + 1) + '번 사진';
     el('frameSlotBadge').textContent = (state.activeSlot + 1) + '번 프레임';
+    el('layoutScaleRange').value = userPercent;
+    el('layoutScaleValue').textContent = userPercent + '%';
+    el('effectiveSizeText').textContent =
+      '실제 사진 ' + effectiveW.toFixed(1) + ' × ' + effectiveH.toFixed(1) + ' mm · A4 자동맞춤 ' + fitPercent + '%';
   }
 
   function renderSlotTabs() {
@@ -946,9 +1020,25 @@
     return maxSize;
   }
 
+  function setFrameControlsDisabled(disabled) {
+    [
+      'frameStyle','frameColor','frameLineColor','frameWidthRange','radiusRange',
+      'patternType','patternColor1','patternColor2','patternSizeRange','patternGapRange',
+      'patternRandomRange','patternSeed','randomSeedBtn','textureSelect','textureRange'
+    ].forEach(function(id) {
+      const node = el(id);
+      if (node) node.disabled = disabled;
+    });
+    document.querySelectorAll('.preset').forEach(function(node) {
+      node.disabled = disabled;
+    });
+  }
+
   function syncFrameControls() {
     const frame = state.slots[state.activeSlot].frame;
+    el('frameEnabledToggle').checked = !!frame.enabled;
     const patternSizeMax = normalizePatternSize(frame);
+    setFrameControlsDisabled(!frame.enabled);
     el('frameStyle').value = frame.style;
     el('frameColor').value = frame.backgroundColor;
     el('frameLineColor').value = frame.lineColor;
@@ -1153,7 +1243,14 @@
   }
 
   function setLayout(layout) {
-    state.layout = Math.max(1, Math.min(2, Number(layout) || 1));
+    state.layout = Math.max(1, Math.min(3, Number(layout) || 1));
+    if (state.layout === 3) {
+      state.orientation = 'landscape';
+      el('orientationSelect').value = 'landscape';
+      el('orientationSelect').disabled = true;
+    } else {
+      el('orientationSelect').disabled = false;
+    }
     state.activeSlot = Math.min(state.activeSlot, state.layout - 1);
     document.querySelectorAll('#layoutButtons button').forEach(function(b) {
       b.classList.toggle('active', Number(b.dataset.layout) === state.layout);
@@ -1174,13 +1271,16 @@
     state.layout = 1;
     state.photoW = 89;
     state.photoH = 119;
+    state.layoutScale = 1;
     state.activeSlot = 0;
     state.guide = { style: 'both', color: '#8a8a8a', offset: 2, safeArea: false };
-    state.slots = [createSlot(0), createSlot(1)];
+    state.slots = [createSlot(0), createSlot(1), createSlot(2)];
 
     el('orientationSelect').value = 'portrait';
     el('photoWidth').value = 89;
     el('photoHeight').value = 119;
+    el('layoutScaleRange').value = 100;
+    el('layoutScaleValue').textContent = '100%';
     el('guideStyle').value = 'both';
     el('guideColor').value = '#8a8a8a';
     el('guideOffset').value = 2;
@@ -1212,6 +1312,7 @@
     const rects = getLayoutRects();
     for (let i = rects.length - 1; i >= 0; i--) {
       const r = rects[i];
+      if (!state.slots[i].frame.enabled) continue;
       const inOuter = p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
       const inPhoto = p.x >= r.photoX && p.x <= r.photoX + r.photoW && p.y >= r.photoY && p.y <= r.photoY + r.photoH;
       if (inOuter && !inPhoto) return { i: i, r: r };
@@ -1313,6 +1414,11 @@
     state.photoH = Math.max(30, Number(e.target.value) || 119);
     render();
   });
+  el('layoutScaleRange').addEventListener('input', function(e) {
+    state.layoutScale = Math.max(0.4, Math.min(1, Number(e.target.value) / 100 || 1));
+    el('layoutScaleValue').textContent = Math.round(state.layoutScale * 100) + '%';
+    render();
+  });
 
   el('imageInput').addEventListener('change', function(e) {
     loadImage(e.target.files && e.target.files[0]);
@@ -1357,17 +1463,25 @@
       alert('먼저 사진을 불러와 주세요.');
       return;
     }
-    const target = state.activeSlot === 0 ? 1 : 0;
-    const dst = state.slots[target];
-    dst.image = src.image;
-    dst.imageUrl = null;
-    dst.imageName = src.imageName;
-    dst.zoom = src.zoom;
-    dst.rotation = src.rotation;
-    dst.offsetX = src.offsetX;
-    dst.offsetY = src.offsetY;
-    dst.flipX = src.flipX;
+    state.slots.forEach(function(dst, index) {
+      if (index === state.activeSlot) return;
+      dst.image = src.image;
+      dst.imageUrl = null;
+      dst.imageName = src.imageName;
+      dst.zoom = src.zoom;
+      dst.rotation = src.rotation;
+      dst.offsetX = src.offsetX;
+      dst.offsetY = src.offsetY;
+      dst.flipX = src.flipX;
+    });
     renderSlotTabs();
+    render();
+  });
+
+  el('frameEnabledToggle').addEventListener('change', function(e) {
+    const frame = state.slots[state.activeSlot].frame;
+    frame.enabled = e.target.checked;
+    syncFrameControls();
     render();
   });
 
@@ -1469,10 +1583,13 @@
     render();
   });
   el('copyFrameBtn').addEventListener('click', function() {
-    const target = state.activeSlot === 0 ? 1 : 0;
-    state.slots[target].frame = JSON.parse(JSON.stringify(state.slots[state.activeSlot].frame));
+    const sourceFrame = state.slots[state.activeSlot].frame;
+    state.slots.forEach(function(slot, index) {
+      if (index === state.activeSlot) return;
+      slot.frame = JSON.parse(JSON.stringify(sourceFrame));
+    });
     if (state.layout === 1) {
-      alert('현재 프레임 설정을 2번 슬롯에도 복사했습니다. 2장 배치로 전환하면 확인할 수 있습니다.');
+      alert('현재 프레임 설정을 나머지 슬롯에도 복사했습니다.');
     }
     render();
   });
@@ -1534,19 +1651,21 @@
   });
   el('copyTextBtn').addEventListener('click', function() {
     const src = state.slots[state.activeSlot];
-    const dst = state.slots[state.activeSlot === 0 ? 1 : 0];
-    dst.nameText = src.nameText;
-    dst.secondaryText = src.secondaryText;
-    dst.fontFamily = src.fontFamily;
-    dst.fontLabel = src.fontLabel;
-    dst.textSize = src.textSize;
-    dst.textColor = src.textColor;
-    dst.textPosition = src.textPosition;
-    dst.textOffsetX = src.textOffsetX;
-    dst.textOffsetY = src.textOffsetY;
-    dst.textWeight = src.textWeight;
-    dst.textOutline = src.textOutline;
-    dst.outlineColor = src.outlineColor;
+    state.slots.forEach(function(dst, index) {
+      if (index === state.activeSlot) return;
+      dst.nameText = src.nameText;
+      dst.secondaryText = src.secondaryText;
+      dst.fontFamily = src.fontFamily;
+      dst.fontLabel = src.fontLabel;
+      dst.textSize = src.textSize;
+      dst.textColor = src.textColor;
+      dst.textPosition = src.textPosition;
+      dst.textOffsetX = src.textOffsetX;
+      dst.textOffsetY = src.textOffsetY;
+      dst.textWeight = src.textWeight;
+      dst.textOutline = src.textOutline;
+      dst.outlineColor = src.outlineColor;
+    });
     render();
   });
 
