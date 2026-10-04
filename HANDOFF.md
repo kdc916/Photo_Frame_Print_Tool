@@ -2,94 +2,156 @@
 
 ## 최신 안정 기준
 
-- 버전: **v0.3.2 Continuous Perimeter Pattern Spacing**
-- 기준일: 2026-10-01
+- 버전: **v0.4.0 Three-Up & Global A4 Fit Scale**
+- 기준일: 2026-10-04
 - 저장소: kdc916/Photo_Frame_Print_Tool
 - 배포: GitHub Pages / main root
 
 ## 절대 유지 기준
 
-- 기본 사진 영역: 89 × 119 mm
+- 기준 사진: 89 × 119 mm
 - A4 Portrait: 210 × 297 mm / 2480 × 3508 px @ 300 DPI
 - A4 Landscape: 297 × 210 mm / 3508 × 2480 px @ 300 DPI
-- A4 한 장 최대 2장
+- A4 최대 3장
+- 3장 선택 시 Landscape 자동 전환 및 Orientation UI 잠금
 - slot.frame 독립 구조
 - Photo → Bleed → Frame Overlay → Text 렌더 순서
 - 사진/폰트 서버 업로드 없음
 
-## v0.3.2 변경 내용
+## v0.4.0 핵심 변경
 
-### 문제
+### 1. SLOT_COUNT 3
 
-v0.3.1의 장식 패턴은 프레임 각 변을 독립적으로 균등 분배했다.
-이 때문에 top/right, right/bottom 같은 모서리에서 각 변의 첫/마지막 패턴이 서로 가까워져 2개가 고정된 것처럼 보일 수 있었다.
+- SLOT_COUNT = 3
+- state.slots = [createSlot(0), createSlot(1), createSlot(2)]
+- Layout UI: 1 / 2 / 3
+- setLayout() 최대값 Math.min(3, ...)
 
-### 해결
+### 2. 3장 자동 Landscape
 
-drawRegularEdgeSymbols()를 네 변 독립 계산 방식에서 전체 Rounded Rectangle Perimeter 방식으로 변경했다.
+setLayout(3) 시:
 
-추가 함수:
-- roundedPerimeterMetrics(g, ppm, frame)
-- pointOnRoundedPerimeter(metrics, distance)
+- state.orientation = landscape
+- orientationSelect = landscape
+- orientationSelect.disabled = true
 
-알고리즘:
-1. 프레임 띠 중앙선을 기준으로 둥근 사각형 center path 계산
-2. 직선 길이 + 4개 quarter arc 길이로 전체 perimeter 계산
-3. desiredStep = patternSize + patternGap 기준으로 count 결정
-4. actualStep = perimeter / count 로 남는 길이를 전체 둘레에 균등 분배
-5. phase = actualStep * 0.5 로 시작해 모서리나 특정 축에 패턴이 고정되지 않도록 처리
-6. 모든 패턴은 phase + index * actualStep 위치에서 하나의 연속 경로를 따라 배치
+1장 또는 2장으로 돌아가면 Orientation 선택을 다시 활성화한다.
 
-결과:
-- 모서리 중복 패턴 제거
-- 직선/곡선 모두 동일 중심 간격
-- 패턴 크기 변경 시 개수 자동 변화
-- Preview / 300 DPI Export에서 동일 배치
+### 3. Global A4 Fit Scale
 
-### 적용 패턴
+state.layoutScale: 0.4 ~ 1.0
 
-- dots
-- diamonds
-- stars
-- hearts
-- flowers
+관련 함수:
 
-## 회귀 금지
+- getGuideReserve()
+- getLayoutMargin()
+- getLayoutGap()
+- getBaseFrameWidth(slot)
+- getBaseSlotOuter(slot)
+- getMaxFitScale()
+- getLayoutScale()
+- getSlotOuter(slot, scale)
+- buildRect(slotIndex, x, y, scale)
+- getLayoutRects()
 
-장식형 패턴을 다시 top/bottom/left/right 네 변별 배열로 분리하지 않는다.
-특히 모서리에 각 변의 패턴이 각각 하나씩 생겨 2개가 붙는 구조로 돌아가면 안 된다.
+실제 적용 배율:
 
-패턴 간격은 단순 고정 개수가 아니라 Pattern Size + Pattern Gap을 기준으로 전체 둘레의 count를 계산하고 actualStep으로 재분배해야 한다.
+getLayoutScale() = getMaxFitScale() × state.layoutScale
 
-## v0.3.1 유지
+getMaxFitScale()는 최대 1.0으로 제한한다. 즉 기준 사진 크기보다 자동으로 더 크게 확대하지 않는다.
 
-- 장식형 패턴은 frame band 중심에 위치
-- Pattern Size는 frame.width에 맞춰 자동 제한
-- Preview에서 frame band 클릭 → 슬롯 활성화 → framePatternSection 자동 이동
-- 체크 / 줄무늬 / 물결 / 지그재그 중심 정렬
+### 4. 3장 Fit 계산
+
+3장에서는 Horizontal Layout만 사용한다.
+
+- Page: A4 Landscape 297 × 210 mm
+- 기본 최소 Margin: 3 mm
+- 기본 최소 Gap: 2 mm
+- Guide가 켜져 있으면 Margin >= guideOffset + 1 mm
+- Guide가 켜져 있으면 Gap >= guideOffset × 2 + 1 mm
+
+기본값:
+
+- photo 89 mm
+- frame 5 mm × 2
+- outer width 99 mm
+- 99 × 3 = 297 mm
+- guideOffset 2 mm → margin 3 mm, gap 5 mm
+- usable width = 297 - 6 - 10 = 281 mm
+- fit = 281 / 297 ≈ 0.9461
+
+따라서 기본 3장 실제 사진 크기는 약 84.2 × 112.6 mm, 프레임은 약 4.7 mm.
+
+### 5. 전체 크기 슬라이더
+
+UI:
+- layoutScaleRange
+- layoutScaleValue
+- effectiveSizeText
+
+슬라이더 100%는 현재 A4 Fit 결과의 최대값. 40%까지 추가 축소 가능.
+
+같이 축소되는 값:
+
+- photoW / photoH
+- frame.width
+- frame.radius
+- frame.patternSize
+- frame.patternGap
+- photo offsetX / offsetY
+- text size / text position offset
+
+### 6. 프레임 ON/OFF
+
+createDefaultFrame(): enabled = true
+
+UI: frameEnabledToggle
+
+OFF 시:
+
+- drawFrame() return
+- getBaseFrameWidth() = 0
+- 레이아웃 외곽에서 프레임 두께 제외
+- hitFrame()에서 선택 대상 제외
+- 프레임/패턴 컨트롤 disabled
+
+사진 자체는 그대로 유지한다.
+
+### 7. Copy 동작 3슬롯 대응
+
+사진 / 프레임 / 텍스트 복사는 현재 슬롯을 제외한 나머지 슬롯 전체에 복사한다.
+
+## v0.3.2 회귀 방지
+
+장식 패턴 dots/diamonds/stars/hearts/flowers는 roundedPerimeterMetrics(), pointOnRoundedPerimeter(), actualStep = perimeter / count, phase = actualStep × 0.5 기반의 Continuous Perimeter 배치를 유지한다.
+
+네 변 독립 배열 방식으로 되돌리지 않는다.
 
 ## 정적 검증
 
 - JavaScript Syntax: OK
 - JS DOM ID 누락: 0
-- continuous rounded perimeter 함수 존재
-- actualStep = perimeter / count 존재
-- half-step phase 존재
-- 이전 cornerInset + 네 변 독립 배치 제거
+- Layout 3 UI 존재
+- SLOT_COUNT 3
+- createSlot(2) 존재
+- setLayout 최대 3
+- 3장 자동 Landscape 존재
+- frameEnabledToggle 연결
+- Frame OFF Geometry = width 0
+- Global Fit Scale 존재
+- Pattern Size / Gap Global Scale 적용
 - Direct Frame Selection 유지
-- Pattern Size Guard 유지
-- Photo Bleed 유지
+- Continuous Perimeter Pattern 유지
 
 ## 다음 개발 후보
 
-- 패턴 회전 Angle
-- 패턴 Opacity
-- 사용자 PNG 패턴 타일
-- 사용자 프레임/패턴 프리셋 LocalStorage
+- 패턴 Angle / Opacity
+- 사용자 PNG 패턴
+- 프레임/패턴 프리셋 LocalStorage
 - 어린이집용 스티커
-- 프린터 Calibration Ruler
+- Calibration Ruler
 - PDF Export
 
 ## 새 채팅 시작용 프롬프트
 
-maxVFX Photo Frame Print Tool v0.3.2를 이어서 개발한다. GitHub kdc916/Photo_Frame_Print_Tool main이 최신 기준이다. A4 최대 2장, 89×119mm, 300DPI, slot.frame 독립 구조를 유지한다. dots/diamonds/stars/hearts/flowers는 roundedPerimeterMetrics + pointOnRoundedPerimeter 기반으로 프레임 전체 둘레를 하나의 연속 경로로 배치한다. Pattern Size + Gap으로 count를 구한 뒤 actualStep = perimeter/count로 전체 간격을 균등 분배하고 half-step phase를 유지한다. 네 변 독립 배치로 되돌리지 않는다. A4 미리보기 프레임 직접 선택 및 Photo Bleed → Frame Overlay 구조도 유지한다. 최종 결과는 GitHub main 반영 + ZIP + 누적 HANDOFF.md로 제공한다.
+maxVFX Photo Frame Print Tool v0.4.0을 이어서 개발한다. GitHub kdc916/Photo_Frame_Print_Tool main이 최신 기준이다. 기준 사진은 89×119mm이며 A4 최대 3장이다. 3장 선택 시 Landscape를 강제하고 getMaxFitScale()로 재단 가이드와 슬롯 간격까지 고려한 최대 맞춤 크기를 계산한다. 실제 배율은 getMaxFitScale() × state.layoutScale이며 전체 크기 슬라이더는 사진/프레임/패턴을 함께 축소한다. frame.enabled가 false이면 프레임 렌더와 레이아웃 프레임 두께를 모두 0으로 처리한다. v0.3.2 Continuous Perimeter Pattern 및 Photo Bleed → Frame Overlay 구조를 유지한다. 최종 결과는 GitHub main 반영 + ZIP + 누적 HANDOFF.md로 제공한다.
